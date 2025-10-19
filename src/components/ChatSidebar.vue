@@ -1,17 +1,25 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useStores } from '../composables/useStores'
+import { useAuthStore } from '../store/auth'
 import { 
-  UserAddOutlined, 
-  SoundOutlined, 
   UserOutlined, 
   TeamOutlined,
+  SoundOutlined,
   PushpinOutlined,
-  BellOutlined
+  BellOutlined,
+  SearchOutlined
 } from '@ant-design/icons-vue'
+import NewChatDropdown from './NewChatDropdown.vue'
+import UserProfile from './UserProfile.vue'
 
 const { chatsStore, setActiveChat } = useStores()
+const authStore = useAuthStore()
 const filteredChats = computed(() => chatsStore.filtered)
+const showUserProfile = ref(false)
+
+const currentUser = computed(() => authStore.currentUser)
+const userInitials = computed(() => authStore.userInitials)
 
 function openChat(id) { 
   setActiveChat(id) 
@@ -55,6 +63,21 @@ function formatLastMessage(message) {
   if (!message) return 'Không có tin nhắn'
   return message.length > 30 ? message.substring(0, 30) + '...' : message
 }
+
+function getAvatarColor(userId) {
+  const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1']
+  if (!userId) return colors[0]
+  let hash = 0
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
+function handleLogout() {
+  // Logout is handled by the UserProfile component
+  // The app will automatically redirect to auth when isAuthenticated becomes false
+}
 </script>
 
 <template>
@@ -69,32 +92,39 @@ function formatLastMessage(message) {
     <!-- Sidebar Header -->
     <div class="sidebar-header">
       <h3 class="sidebar-title">Chats</h3>
-      <a-space>
+      <div class="header-actions">
         <a-button 
           type="text" 
-          @click="newGroup"
-          :title="'Tạo nhóm mới'"
+          @click="showUserProfile = true"
+          class="profile-btn"
+          :title="'Thông tin tài khoản'"
         >
-          <template #icon><UserAddOutlined /></template>
+          <a-avatar :size="32" :style="{ backgroundColor: getAvatarColor(currentUser?.id) }">
+            {{ userInitials }}
+          </a-avatar>
         </a-button>
-        <a-button 
-          type="text" 
-          @click="newChannel"
-          :title="'Tạo channel mới'"
-        >
-          <template #icon><SoundOutlined /></template>
-        </a-button>
-      </a-space>
+        <NewChatDropdown />
+      </div>
     </div>
+    
+    <!-- User Profile Modal -->
+    <UserProfile 
+      v-model:open="showUserProfile"
+      @logout="handleLogout"
+    />
 
     <!-- Search Input -->
     <div class="search-container">
-      <a-input-search 
-        placeholder="Tìm kiếm cuộc trò chuyện"
-        @search="onSearch"
+      <a-input 
+        placeholder="Tìm kiếm cuộc trò chuyện..."
         @input="e => onSearch(e.target.value)"
         allow-clear
-      />
+        class="search-input"
+      >
+        <template #prefix>
+          <SearchOutlined class="search-icon" />
+        </template>
+      </a-input>
     </div>
 
     <!-- Chat List -->
@@ -190,28 +220,98 @@ function formatLastMessage(message) {
 }
 
 .sidebar-header {
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--border-light);
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-btn {
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease-in-out;
+}
+
+.profile-btn:hover {
+  background-color: #f5f5f5;
+  transform: scale(1.05);
 }
 
 .sidebar-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  color: #262626;
+  background: linear-gradient(135deg, #1890ff 0%, #722ed1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .search-container {
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--border-light);
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.search-input {
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.search-input:hover {
+  border-color: #40a9ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+}
+
+.search-input:focus-within {
+  border-color: #1890ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+}
+
+.search-icon {
+  color: #bfbfbf;
+  transition: color 0.2s;
+}
+
+.search-input:focus-within .search-icon {
+  color: #1890ff;
 }
 
 .chat-list-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+.chat-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-list-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-list-container::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.chat-list-container::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
+}
+
+.chat-list-container::-webkit-scrollbar-thumb:active {
+  background: #8c8c8c;
 }
 
 .chat-list {
@@ -220,36 +320,44 @@ function formatLastMessage(message) {
 
 .chat-item {
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid var(--border-light);
+  transition: all 0.2s ease-in-out;
+  border-bottom: 1px solid #f5f5f5;
   position: relative;
+  margin: 0 8px;
+  border-radius: 12px;
+  margin-bottom: 4px;
 }
 
 .chat-item:hover {
   background-color: #f5f5f5;
-  transform: translateX(2px);
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .chat-item.active {
   background-color: #e6f7ff;
-  border-right: 3px solid var(--primary-color);
+  border: 2px solid #1890ff;
+  transform: translateX(6px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
 }
 
 .chat-item.active::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--primary-color);
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 20px;
+  background: #1890ff;
+  border-radius: 2px;
 }
 
 .chat-item-content {
   display: flex;
   align-items: center;
-  padding: var(--spacing-md);
-  gap: var(--spacing-md);
+  padding: 12px 16px;
+  gap: 12px;
 }
 
 .chat-avatar {
@@ -332,15 +440,24 @@ function formatLastMessage(message) {
 
 @media (max-width: 768px) {
   .sidebar-header {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 16px 12px 12px;
   }
   
   .search-container {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 12px;
   }
   
   .chat-item-content {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 10px 12px;
+  }
+  
+  .chat-item {
+    margin: 0 4px;
+    margin-bottom: 2px;
+  }
+  
+  .sidebar-title {
+    font-size: 18px;
   }
 }
 
@@ -355,6 +472,14 @@ function formatLastMessage(message) {
   
   .chat-item:hover .chat-actions {
     display: none;
+  }
+  
+  .search-container {
+    padding: 8px;
+  }
+  
+  .sidebar-header {
+    padding: 12px 8px 8px;
   }
 }
 </style>

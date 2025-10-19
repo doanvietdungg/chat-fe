@@ -56,6 +56,42 @@ export function useChatsStore() {
     state.query = q
   }
 
+  function addChat(chat) {
+    if (!chat || !chat.id) return
+    const existingIndex = state.chats.findIndex(c => c && c.id === chat.id)
+    if (existingIndex !== -1) {
+      // Update existing chat
+      state.chats[existingIndex] = { ...state.chats[existingIndex], ...chat }
+    } else {
+      // Add new chat to the beginning
+      state.chats.unshift(chat)
+    }
+  }
+
+  function findChatByUserId(userId) {
+    return state.chats.find(chat => 
+      chat && 
+      chat.type === 'private' && 
+      chat.participants && 
+      chat.participants.includes(userId) && 
+      chat.participants.includes('current_user')
+    )
+  }
+
+  function setActiveChat(chatId) {
+    setActive(chatId)
+  }
+
+  function removeChat(chatId) {
+    const index = state.chats.findIndex(c => c && c.id === chatId)
+    if (index !== -1) {
+      state.chats.splice(index, 1)
+      if (state.activeChatId === chatId) {
+        state.activeChatId = state.chats.length > 0 ? state.chats[0].id : null
+      }
+    }
+  }
+
   const filtered = computed(() => {
     const q = state.query.trim().toLowerCase()
     const validChats = state.chats.filter(c => c && c.id && c.title)
@@ -68,7 +104,22 @@ export function useChatsStore() {
 
   const activeChat = computed(() => state.chats.find(c => c && c.id === state.activeChatId))
 
-  return { state, filtered, activeChat, setActive, createGroup, createChannel, togglePin, toggleMute, setNotificationLevel, setSearch }
+  return { 
+    state, 
+    filtered, 
+    activeChat, 
+    setActive, 
+    createGroup, 
+    createChannel, 
+    togglePin, 
+    toggleMute, 
+    setNotificationLevel, 
+    setSearch,
+    addChat,
+    findChatByUserId,
+    setActiveChat,
+    removeChat
+  }
 }
 
 

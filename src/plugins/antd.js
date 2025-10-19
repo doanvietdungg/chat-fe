@@ -16,7 +16,9 @@ import {
   Alert,
   Skeleton,
   Spin,
-  Textarea
+  Textarea,
+  Form,
+  Checkbox
 } from 'ant-design-vue'
 
 // Import Ant Design styles
@@ -42,4 +44,6 @@ export default function setupAntDesign(app) {
   app.use(Skeleton)
   app.use(Spin)
   app.use(Textarea)
+  app.use(Form)
+  app.use(Checkbox)
 }
