@@ -67,9 +67,9 @@ export function useChatCreation() {
       }
 
       // Create new chat via backend
-      const res = await chatAPI.createChat({ type: 'private', participantIds: [userId] })
-      const outer = res?.data || res
-      const chat = outer?.data || outer
+      const res = await chatAPI.createChat({ type: 'PRIVATE', otherUserId: userId })
+      // Handle response structure: { success: true, data: { id: "...", ... } }
+      const chat = res?.data?.data || res?.data || res
 
       // Normalize minimal fields for chats store
       const normalized = {

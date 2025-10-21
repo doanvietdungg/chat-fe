@@ -39,7 +39,7 @@ let pendingRequests = []
 function subscribeTokenRefresh(cb) { pendingRequests.push(cb) }
 function onRefreshed(token) {
   pendingRequests.forEach((cb) => {
-    try { cb(token) } catch (_) {}
+    try { cb(token) } catch (_) { }
   })
   pendingRequests = []
 }
@@ -187,89 +187,6 @@ export const notificationAPI = {
   markAllAsRead: () => api.put('/notifications/read-all')
 }
 
-// WebSocket Service
-export class WebSocketService {
-  constructor() {
-    this.socket = null
-    this.listeners = new Map()
-    this.reconnectAttempts = 0
-    this.maxReconnectAttempts = 5
-    this.reconnectDelay = 1000
-  }
-
-  connect() {
-    if (this.socket?.readyState === WebSocket.OPEN) return
-    const wsUrl = `${(import.meta?.env?.VITE_WS_URL) || 'http://localhost:8080/ws'}`
-    console.log('WS connect to:', wsUrl)
-    try {
-      this.socket = new WebSocket(wsUrl)
-      this.socket.onopen = () => {
-        this.reconnectAttempts = 0
-        this.emit('connected')
-      }
-      this.socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          this.emit(data.type, data.data)
-        } catch (err) { /* noop */ }
-      }
-      this.socket.onclose = () => {
-        this.emit('disconnected')
-        this.attemptReconnect()
-      }
-      this.socket.onerror = (err) => this.emit('error', err)
-      if (import.meta?.env?.VITE_DEBUG === 'true') {
-        // eslint-disable-next-line no-console
-        console.log('WS connect to:', wsUrl)
-      }
-    } catch (_) { /* noop */ }
-  }
-
-  disconnect() {
-    if (this.socket) {
-      this.socket.close()
-      this.socket = null
-    }
-  }
-
-  send(type, data) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ type, data }))
-    }
-  }
-
-  on(event, callback) {
-    if (!this.listeners.has(event)) this.listeners.set(event, [])
-    this.listeners.get(event).push(callback)
-  }
-
-  off(event, callback) {
-    if (this.listeners.has(event)) {
-      const list = this.listeners.get(event)
-      const i = list.indexOf(callback)
-      if (i > -1) list.splice(i, 1)
-    }
-  }
-
-  emit(event, data) {
-    if (this.listeners.has(event)) {
-      this.listeners.get(event).forEach(cb => cb(data))
-    }
-  }
-
-  attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
-      setTimeout(() => this.connect(), delay)
-    }
-  }
-
-  joinChat(chatId) { this.send('join_chat', { chatId }) }
-  leaveChat(chatId) { this.send('leave_chat', { chatId }) }
-  startTyping(chatId) { this.send('typing_start', { chatId }) }
-  stopTyping(chatId) { this.send('typing_stop', { chatId }) }
-  markMessageAsRead(messageId) { this.send('message_read', { messageId }) }
-}
-
-export const wsService = new WebSocketService()
+// WebSocket Service - Using STOMP protocol
+// Import the STOMP service for WebSocket connections
+export { stompService as wsService } from './stompService'

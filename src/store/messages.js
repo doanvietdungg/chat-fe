@@ -1,4 +1,5 @@
 import { reactive, computed } from 'vue'
+import { useAuthStore } from './auth'
 
 // Enhanced message state with Telegram-like features
 const state = reactive({
@@ -92,11 +93,7 @@ const state = reactive({
       type: 'text'
     }
   ],
-  currentUser: {
-    id: 'user-me',
-    name: `User-${Math.floor(Math.random() * 1000)}`,
-    avatar: null
-  },
+
   typingUsers: [], // Users currently typing
   editingMessageId: null,
   replyingTo: null,
@@ -106,6 +103,11 @@ const state = reactive({
 })
 
 export function useMessagesStore() {
+  // Get current user from auth store
+  function getCurrentUser() {
+    const authStore = useAuthStore()
+    return authStore.user || { id: 'user-me', name: 'You' }
+  }
   // Message CRUD operations
   function setMessagesForChat(chatId, apiData) {
     if (!chatId) return
@@ -147,27 +149,36 @@ export function useMessagesStore() {
 
   function addMessage(messageData) {
     const message = {
-      id: generateId(),
+      id: messageData.id || generateId(),
       chatId: messageData.chatId || state.currentChatId,
       text: messageData.text || '',
-      author: state.currentUser.name,
-      authorId: state.currentUser.id,
-      timestamp: new Date().toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
+      author: messageData.author || getCurrentUser().name,
+      authorId: messageData.authorId || getCurrentUser().id,
+      timestamp: messageData.timestamp || new Date().toISOString(),
+      at: messageData.timestamp || new Date().toISOString(), // For compatibility
+      edited: messageData.edited || false,
+      editedAt: messageData.editedAt || null,
+      reactions: messageData.reactions || [],
       replyTo: messageData.replyTo || null,
       forwarded: messageData.forwarded || null,
-      readBy: [],
+      readBy: messageData.readBy || [],
       media: messageData.media || null,
       voice: messageData.voice || null,
       type: messageData.type || 'text'
     }
     
-    state.messages.push(message)
+    // Check if message already exists (avoid duplicates)
+    const existingIndex = state.messages.findIndex(m => m.id === message.id)
+    if (existingIndex !== -1) {
+      // Update existing message
+      state.messages[existingIndex] = message
+    } else {
+      // Add new message
+      state.messages.push(message)
+    }
     
-    // Clear reply state after sending
-    if (state.replyingTo) {
+    // Clear reply state after sending (only for current user messages)
+    if (state.replyingTo && message.authorId === getCurrentUser().id) {
       state.replyingTo = null
     }
     
@@ -176,7 +187,7 @@ export function useMessagesStore() {
 
   function editMessage(messageId, newText) {
     const message = state.messages.find(m => m.id === messageId)
-    if (message && message.authorId === state.currentUser.id) {
+    if (message && message.authorId === getCurrentUser().id) {
       message.text = newText
       message.edited = true
       message.editedAt = new Date().toISOString()
@@ -190,7 +201,7 @@ export function useMessagesStore() {
     const messageIndex = state.messages.findIndex(m => m.id === messageId)
     if (messageIndex !== -1) {
       const message = state.messages[messageIndex]
-      if (message.authorId === state.currentUser.id) {
+      if (message.authorId === getCurrentUser().id) {
         // Soft delete - replace with placeholder
         message.text = 'Tin nhắn đã được xóa'
         message.deleted = true
@@ -221,7 +232,7 @@ export function useMessagesStore() {
     
     if (existingReaction) {
       // Toggle user's reaction
-      const userIndex = existingReaction.users.indexOf(state.currentUser.id)
+      const userIndex = existingReaction.users.indexOf(getCurrentUser().id)
       if (userIndex > -1) {
         existingReaction.users.splice(userIndex, 1)
         existingReaction.count--
@@ -232,14 +243,14 @@ export function useMessagesStore() {
           message.reactions.splice(reactionIndex, 1)
         }
       } else {
-        existingReaction.users.push(state.currentUser.id)
+        existingReaction.users.push(getCurrentUser().id)
         existingReaction.count++
       }
     } else {
       // Add new reaction
       message.reactions.push({
         emoji,
-        users: [state.currentUser.id],
+        users: [getCurrentUser().id],
         count: 1
       })
     }
@@ -254,7 +265,7 @@ export function useMessagesStore() {
     const reactionIndex = message.reactions.findIndex(r => r.emoji === emoji)
     if (reactionIndex > -1) {
       const reaction = message.reactions[reactionIndex]
-      const userIndex = reaction.users.indexOf(state.currentUser.id)
+      const userIndex = reaction.users.indexOf(getCurrentUser().id)
       
       if (userIndex > -1) {
         reaction.users.splice(userIndex, 1)
@@ -287,7 +298,7 @@ export function useMessagesStore() {
   // Edit management
   function startEdit(messageId) {
     const message = state.messages.find(m => m.id === messageId)
-    if (message && message.authorId === state.currentUser.id) {
+    if (message && message.authorId === getCurrentUser().id) {
       state.editingMessageId = messageId
       return message.text
     }
@@ -393,7 +404,7 @@ export function useMessagesStore() {
   function markAsRead(messageId, userId = null) {
     const message = state.messages.find(m => m.id === messageId)
     if (message) {
-      const readerId = userId || state.currentUser.id
+      const readerId = userId || getCurrentUser().id
       const existingRead = message.readBy.find(r => r.userId === readerId)
       
       if (!existingRead) {

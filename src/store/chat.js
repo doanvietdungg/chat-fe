@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { useMessagesStore } from './messages'
 import { useChatsStore } from './chats'
+import { useAuthStore } from './auth'
 import { stompService } from '../services/stompService'
 import { chatService } from '../services/chatService'
 
@@ -11,9 +12,11 @@ const state = reactive({
   currentChatId: 'friend-1', // Default active chat
   pendingRecipientId: null,
   loading: false,
+  subscribedChats: new Set(), // Track subscribed chat IDs
 })
 
 let listenersBound = false
+const chatSubscriptions = new Map() // Track subscription IDs
 
 export function useChatStore() {
   function connect() {
@@ -23,8 +26,16 @@ export function useChatStore() {
       stompService.connect()
       if (!listenersBound) {
         listenersBound = true
-        stompService.on('connected', () => { state.isConnected = true })
-        stompService.on('disconnected', () => { state.isConnected = false })
+        stompService.on('connected', () => {
+          state.isConnected = true
+          // Re-subscribe to chats after reconnection
+          resubscribeToChats()
+        })
+        stompService.on('disconnected', () => {
+          state.isConnected = false
+          state.subscribedChats.clear()
+          chatSubscriptions.clear()
+        })
         stompService.on('error', () => { state.connectionError = 'STOMP error occurred' })
       }
     } catch (_) {
@@ -34,7 +45,7 @@ export function useChatStore() {
   }
 
   function disconnect() {
-    try { stompService.disconnect() } catch (_) {}
+    try { stompService.disconnect() } catch (_) { }
     state.isConnected = false
   }
 
@@ -57,10 +68,13 @@ export function useChatStore() {
         }
         state.loading = true
         // Create chat via API
-        const newChat = await chatService.createChat({
-          type: 'private',
-          participantIds: [state.pendingRecipientId],
+        const chatResponse = await chatService.createChat({
+          type: 'PRIVATE',
+          otherUserId: state.pendingRecipientId,
         })
+
+        // Handle response structure: { success: true, data: { id: "...", ... } }
+        const newChat = chatResponse?.data || chatResponse
 
         // Replace draft chat with real chat (or add if none)
         if (isDraft) {
@@ -72,25 +86,35 @@ export function useChatStore() {
         state.currentChatId = newChat.id
         state.pendingRecipientId = null
         chatId = newChat.id
+
+        // Subscribe to the new chat for real-time messages
+        subscribeToChat(chatId)
       }
 
-      // Send message via API
+      // Send message via WebSocket (STOMP)
       const payload = {
+        chatId: chatId,
         text: trimmed,
-        type: options.type || 'text',
-        replyTo: options.replyTo || null,
-        media: options.media || null,
-        voice: options.voice || null,
+        type: 'TEXT' // MessageType.TEXT from backend enum
       }
 
-      const sent = await chatService.sendMessage(chatId, payload)
+      // Get current user info
+      const authStore = useAuthStore()
+      const currentUser = authStore.user
 
-      // Update local store optimistically if needed
-      const message = messagesStore.addMessage({
+      // Add message optimistically to local store BEFORE sending
+      const optimisticMessage = messagesStore.addMessage({
         ...payload,
-        chatId,
+        id: cryptoRandomId(), // Generate temporary ID
+        timestamp: new Date().toISOString(),
+        authorId: currentUser?.id || 'current_user',
+        author: currentUser?.name || currentUser?.username || 'You',
       })
-      return message || sent
+
+      // Send via STOMP WebSocket
+      stompService.send('/app/messages.send', payload)
+
+      return optimisticMessage
     } catch (e) {
       throw e
     } finally {
@@ -100,6 +124,10 @@ export function useChatStore() {
 
   function setCurrentChat(chatId) {
     state.currentChatId = chatId
+    // Subscribe to this chat for real-time messages
+    if (chatId && !chatId.startsWith('draft-')) {
+      subscribeToChat(chatId)
+    }
   }
 
   function startPrivateDraft(userId, draftId) {
@@ -117,6 +145,70 @@ export function useChatStore() {
     return messagesStore.getMessagesForChat(state.currentChatId)
   })
 
+  // Subscribe to a chat for real-time messages
+  function subscribeToChat(chatId) {
+    if (!chatId || state.subscribedChats.has(chatId) || !state.isConnected) return
+
+    const destination = `/topic/chats/${chatId}`
+    const subscriptionId = stompService.subscribe(destination, (message) => {
+      if (message) {
+        const messagesStore = useMessagesStore()
+        const authStore = useAuthStore()
+        const currentUserId = authStore.user?.id
+
+        // Only add message if it's not from current user (avoid duplicates)
+        // Current user's messages are already added optimistically
+        if (message.authorId !== currentUserId) {
+          messagesStore.addMessage({
+            id: message.id,
+            chatId: message.chatId,
+            text: message.text,
+            authorId: message.authorId,
+            timestamp: message.createdAt || new Date().toISOString(),
+            type: message.type || 'TEXT'
+          })
+        }
+      }
+    })
+
+    if (subscriptionId) {
+      state.subscribedChats.add(chatId)
+      chatSubscriptions.set(chatId, subscriptionId)
+    }
+  }
+
+  // Unsubscribe from a chat
+  function unsubscribeFromChat(chatId) {
+    if (!chatId || !state.subscribedChats.has(chatId)) return
+
+    const subscriptionId = chatSubscriptions.get(chatId)
+    if (subscriptionId) {
+      stompService.unsubscribe(subscriptionId)
+      state.subscribedChats.delete(chatId)
+      chatSubscriptions.delete(chatId)
+    }
+  }
+
+  // Re-subscribe to all chats after reconnection
+  function resubscribeToChats() {
+    const chatsToResubscribe = Array.from(state.subscribedChats)
+    state.subscribedChats.clear()
+    chatSubscriptions.clear()
+
+    chatsToResubscribe.forEach(chatId => {
+      subscribeToChat(chatId)
+    })
+  }
+
+  // Subscribe to multiple chats (useful when loading chat list)
+  function subscribeToChats(chatIds) {
+    chatIds.forEach(chatId => {
+      if (chatId && !chatId.startsWith('draft-')) {
+        subscribeToChat(chatId)
+      }
+    })
+  }
+
   return {
     state,
     connect,
@@ -126,6 +218,9 @@ export function useChatStore() {
     startPrivateDraft,
     messageCount,
     currentChatMessages,
+    subscribeToChat,
+    unsubscribeFromChat,
+    subscribeToChats,
   }
 }
 

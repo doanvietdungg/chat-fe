@@ -1,4 +1,5 @@
 import { reactive, computed } from 'vue'
+import { chatService } from '../services/chatService'
 
 const state = reactive({
   query: '',
@@ -106,6 +107,33 @@ export function useChatsStore() {
     }
   }
 
+  // Load chats from API and return chat IDs for subscription
+  async function loadChats() {
+    try {
+      const response = await chatService.getChats()
+      const chats = response?.data?.content || response?.content || response?.data || []
+      
+      // Update local state
+      state.chats = chats.map(chat => ({
+        id: chat.id,
+        type: chat.type || 'private',
+        title: chat.name || chat.title || 'Unknown Chat',
+        last: chat.lastMessage?.text || '',
+        unread: chat.unreadCount || 0,
+        pinned: chat.pinned || false,
+        muted: chat.muted || false,
+        notificationLevel: chat.notificationLevel || 'all',
+        participants: chat.participants || []
+      }))
+
+      // Return chat IDs for subscription
+      return chats.map(chat => chat.id).filter(Boolean)
+    } catch (error) {
+      console.error('Failed to load chats:', error)
+      return []
+    }
+  }
+
   const filtered = computed(() => {
     const q = state.query.trim().toLowerCase()
     const validChats = state.chats.filter(c => c && c.id && c.title)
@@ -133,7 +161,8 @@ export function useChatsStore() {
     replaceChat,
     findChatByUserId,
     setActiveChat,
-    removeChat
+    removeChat,
+    loadChats
   }
 }
 

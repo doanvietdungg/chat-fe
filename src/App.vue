@@ -1,9 +1,9 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMain from './components/ChatMain.vue'
 import AuthContainer from './components/AuthContainer.vue'
-import { initializeStores } from './plugins/stores'
+import { initializeStores, initializeChatSystem } from './plugins/stores'
 import { useAuthStore } from './store/auth'
 
 const authStore = useAuthStore()
@@ -16,6 +16,14 @@ onMounted(() => {
   // Then initialize other stores
   initializeStores()
 })
+
+// Watch for authentication changes and initialize chat system
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    // Initialize chat system after successful authentication
+    await initializeChatSystem()
+  }
+}, { immediate: true })
 
 const handleAuthSuccess = () => {
   // Auth success is handled by the store

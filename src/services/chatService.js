@@ -9,9 +9,9 @@ export const chatService = {
       })
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể tải danh sách chat'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể tải danh sách chat'
       throw new Error(message)
     }
   },
@@ -22,9 +22,9 @@ export const chatService = {
       const response = await api.post('/chats', chatData)
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể tạo chat mới'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể tạo chat mới'
       throw new Error(message)
     }
   },
@@ -35,9 +35,9 @@ export const chatService = {
       const response = await api.get(`/chats/${chatId}`)
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể tải thông tin chat'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể tải thông tin chat'
       throw new Error(message)
     }
   },
@@ -50,9 +50,9 @@ export const chatService = {
       })
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể tải tin nhắn'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể tải tin nhắn'
       throw new Error(message)
     }
   },
@@ -63,9 +63,9 @@ export const chatService = {
       const response = await api.post(`/chats/${chatId}/messages`, messageData)
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể gửi tin nhắn'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể gửi tin nhắn'
       throw new Error(message)
     }
   },
@@ -76,9 +76,9 @@ export const chatService = {
       const response = await api.put(`/messages/${messageId}`, messageData)
       return response.data
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể cập nhật tin nhắn'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể cập nhật tin nhắn'
       throw new Error(message)
     }
   },
@@ -89,9 +89,9 @@ export const chatService = {
       await api.delete(`/messages/${messageId}`)
       return true
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể xóa tin nhắn'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể xóa tin nhắn'
       throw new Error(message)
     }
   },
@@ -102,9 +102,9 @@ export const chatService = {
       await api.post(`/messages/${messageId}/read`)
       return true
     } catch (error) {
-      const message = error.response?.data?.message || 
-                    error.response?.data?.error || 
-                    'Không thể đánh dấu đã đọc'
+      const message = error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Không thể đánh dấu đã đọc'
       throw new Error(message)
     }
   }

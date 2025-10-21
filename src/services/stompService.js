@@ -12,9 +12,11 @@ class StompService {
   connect() {
     if (this.client?.active) return
     const url = (import.meta?.env?.VITE_WS_URL) || 'http://localhost:8080/ws'
+    const token = localStorage.getItem('auth_token')
 
     this.client = new Client({
       webSocketFactory: () => new SockJS(url),
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 1000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
