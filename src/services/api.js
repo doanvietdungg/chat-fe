@@ -32,11 +32,23 @@ api.interceptors.request.use(
   }
 )
 
+// Single-flight token refresh state
+let isRefreshing = false
+let pendingRequests = []
+
+function subscribeTokenRefresh(cb) { pendingRequests.push(cb) }
+function onRefreshed(token) {
+  pendingRequests.forEach((cb) => {
+    try { cb(token) } catch (_) {}
+  })
+  pendingRequests = []
+}
+
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config || {}
 
     const status = error.response?.status
     const requestUrl = originalRequest?.url || ''
@@ -45,29 +57,53 @@ api.interceptors.response.use(
     if ((status === 401 || status === 403) && !originalRequest._retry && !isRefreshCall) {
       originalRequest._retry = true
 
-      try {
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (refreshToken) {
-          const response = await refreshClient.post('/auth/refresh', {
-            refreshToken
-          })
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (!refreshToken) {
+        // No refresh token, reject and let caller handle navigation
+        return Promise.reject(error)
+      }
 
-          const token = response?.data?.accessToken || response?.data?.token
-          const newRefresh = response?.data?.refreshToken
-          if (!token) throw new Error('No token in refresh response')
-          localStorage.setItem('auth_token', token)
-          if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return api(originalRequest)
-        }
+      if (isRefreshing) {
+        // Queue this request to run after refresh finishes
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((newToken) => {
+            if (!newToken) return reject(error)
+            originalRequest.headers = originalRequest.headers || {}
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            resolve(api(originalRequest))
+          })
+        })
+      }
+
+      // Start refresh
+      isRefreshing = true
+      try {
+        const response = await refreshClient.post(
+          '/auth/refresh',
+          { refreshToken },
+          { headers: { Authorization: `Bearer ${refreshToken}` } }
+        )
+
+        const token = response?.data?.accessToken || response?.data?.token
+        const newRefresh = response?.data?.refreshToken
+        if (!token) throw new Error('No token in refresh response')
+        localStorage.setItem('auth_token', token)
+        if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
+
+        onRefreshed(token)
+        // Retry the original request
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${token}`
+        return api(originalRequest)
       } catch (refreshError) {
-        // Refresh failed, redirect to login
+        onRefreshed(null)
+        // Cleanup tokens but do not hard redirect here to avoid UX disruption
         localStorage.removeItem('auth_token')
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('auth_user')
-        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
       }
     }
 

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+
 import { useChatsStore } from '../store/chats'
 import { useChatStore } from '../store/chat'
 import { 
@@ -13,7 +14,8 @@ import {
 const chats = useChatsStore()
 const chat = useChatStore()
 
-const activeChat = computed(() => chats.activeChat)
+const activeChat = chats.activeChat
+
 const isConnected = computed(() => chat.state.isConnected)
 const searchQuery = ref('')
 const showNotificationModal = ref(false)

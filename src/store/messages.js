@@ -107,6 +107,44 @@ const state = reactive({
 
 export function useMessagesStore() {
   // Message CRUD operations
+  function setMessagesForChat(chatId, apiData) {
+    if (!chatId) return
+    const outer = apiData?.data || apiData
+    const node = outer?.data || outer
+    const list = Array.isArray(node?.content) ? node.content : (Array.isArray(node) ? node : [])
+
+    // Remove existing messages for this chat
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+      if (state.messages[i] && state.messages[i].chatId === chatId) {
+        state.messages.splice(i, 1)
+      }
+    }
+
+    // Map API items to local message shape and insert (oldest first)
+    const mapped = list.map(it => ({
+      id: it.id || `msg-${Math.random().toString(36).slice(2)}`,
+      chatId: it.chatId || chatId,
+      text: it.text || it.content || it.body || '',
+      author: it.author?.name || it.senderName || it.sender || 'Unknown',
+      authorId: it.authorId || it.senderId || it.userId || 'unknown',
+      timestamp: it.createdAt || it.timestamp || new Date().toISOString(),
+      at: it.createdAt || it.timestamp || new Date().toISOString(),
+      edited: !!it.edited,
+      editedAt: it.editedAt || null,
+      reactions: Array.isArray(it.reactions) ? it.reactions : [],
+      replyTo: it.replyTo || null,
+      forwarded: it.forwarded || null,
+      readBy: Array.isArray(it.readBy) ? it.readBy : [],
+      media: it.media || null,
+      voice: it.voice || null,
+      type: it.type || 'text'
+    }))
+
+    // Ensure chronological order if backend returns desc
+    const inAsc = mapped.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    state.messages.push(...inAsc)
+  }
+
   function addMessage(messageData) {
     const message = {
       id: generateId(),
@@ -402,6 +440,7 @@ export function useMessagesStore() {
     state,
     
     // Message operations
+    setMessagesForChat,
     addMessage,
     editMessage,
     deleteMessage,

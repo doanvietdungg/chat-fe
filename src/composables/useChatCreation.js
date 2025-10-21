@@ -3,12 +3,15 @@ import { useChatCreationStore } from '../store/chatCreation.js'
 import { useChatsStore } from '../store/chats.js'
 import { useUsersStore } from '../store/users.js'
 import { useChatStore } from '../store/chat.js'
+import { chatAPI, messageAPI } from '../services/api.js'
+import { useMessagesStore } from '../store/messages.js'
 
 export function useChatCreation() {
   const chatCreationStore = useChatCreationStore()
   const chatsStore = useChatsStore()
   const usersStore = useUsersStore()
   const chatStore = useChatStore()
+  const messagesStore = useMessagesStore()
 
   const isCreating = ref(false)
   const error = ref(null)
@@ -36,6 +39,7 @@ export function useChatCreation() {
     chatsStore.addChat(draftChat)
     chatsStore.setActiveChat(draftId)
     chatStore.startPrivateDraft(user.id, draftId)
+    try { messagesStore.setMessagesForChat(draftId, []) } catch (_) {}
     return draftChat
   }
 
@@ -53,12 +57,74 @@ export function useChatCreation() {
       if (existingChat) {
         // Chat already exists, just activate it
         chatsStore.setActiveChat(existingChat.id)
+        try { chatStore.setCurrentChat(existingChat.id) } catch (_) {}
+        // Load latest messages for existing chat
+        try {
+          const msgsRes = await messageAPI.getMessages(existingChat.id, { page: 0, size: 50, sort: 'createdAt,desc' })
+          messagesStore.setMessagesForChat(existingChat.id, msgsRes)
+        } catch (_) { /* noop */ }
         return existingChat
       }
 
-      // Create new chat via chatCreation store (immediate creation path)
-      const newChat = await chatCreationStore.createOrOpenChat(userId)
-      return newChat
+      // Create new chat via backend
+      const res = await chatAPI.createChat({ type: 'private', participantIds: [userId] })
+      const outer = res?.data || res
+      const chat = outer?.data || outer
+
+      // Normalize minimal fields for chats store
+      const normalized = {
+        id: chat.id,
+        type: chat.type || 'private',
+        title: chat.title || chat.displayName || chat.name || 'Private Chat',
+        last: chat.lastMessage || '',
+        unread: chat.unreadCount || 0,
+        pinned: !!chat.pinned,
+        muted: !!chat.muted,
+        participants: chat.participants?.map(p => p.userId || p.id) || [userId],
+        avatar: chat.avatar || chat.avatarUrl || null,
+        isOnline: false,
+        isTyping: false,
+        createdAt: chat.createdAt || new Date().toISOString(),
+        updatedAt: chat.updatedAt || new Date().toISOString()
+      }
+
+      // Add minimal first for instant navigation
+      chatsStore.addChat(normalized)
+      chatsStore.setActiveChat(normalized.id)
+      try { chatStore.setCurrentChat(normalized.id) } catch (_) {}
+
+      // Fetch full chat details and update store
+      try {
+        const fullRes = await chatAPI.getChat(normalized.id)
+        const fullOuter = fullRes?.data || fullRes
+        const full = fullOuter?.data || fullOuter
+        const enriched = {
+          ...normalized,
+          title: full.title || normalized.title,
+          participants: full.participants?.map(p => p.userId || p.id) || normalized.participants,
+          avatar: full.avatar || full.avatarUrl || normalized.avatar,
+          last: full.lastMessage || normalized.last,
+          unread: full.unreadCount ?? normalized.unread,
+          createdAt: full.createdAt || normalized.createdAt,
+          updatedAt: full.updatedAt || normalized.updatedAt
+        }
+        chatsStore.replaceChat(normalized.id, enriched)
+
+        // Load messages for this chat
+        try {
+          const msgsRes = await messageAPI.getMessages(enriched.id, { page: 0, size: 50, sort: 'createdAt,desc' })
+          messagesStore.setMessagesForChat(enriched.id, msgsRes)
+        } catch (_) { /* noop */ }
+
+        return enriched
+      } catch (_) {
+        // Fallback to minimal if details fetch fails
+        try {
+          const msgsRes = await messageAPI.getMessages(normalized.id, { page: 0, size: 50, sort: 'createdAt,desc' })
+          messagesStore.setMessagesForChat(normalized.id, msgsRes)
+        } catch (_) { /* noop */ }
+        return normalized
+      }
     } catch (err) {
       error.value = err.message
       console.error('Failed to create or open chat:', err)

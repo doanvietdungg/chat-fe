@@ -78,8 +78,8 @@ export function validateSearchQuery(query) {
     return { isValid: false, error: 'Search query cannot be empty' }
   }
   
-  if (trimmed.length < 2) {
-    return { isValid: false, error: 'Search query must be at least 2 characters long' }
+  if (trimmed.length < 1) {
+    return { isValid: false, error: 'Search query must be at least 1 character long' }
   }
   
   if (trimmed.length > 100) {

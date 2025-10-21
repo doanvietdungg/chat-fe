@@ -94,6 +94,7 @@ export const useUserSearchStore = defineStore('userSearch', () => {
   const lastSearchTime = ref(0)
   const searchCooldown = ref(500) // 500ms between searches
   const searchHistory = ref([]) // Track search frequency
+  const isLoadingSuggestions = ref(false)
 
   // Computed
   const hasResults = computed(() => searchResults.value.length > 0)
@@ -277,23 +278,48 @@ export const useUserSearchStore = defineStore('userSearch', () => {
     }
   }
 
-  const loadSuggestedContacts = () => {
-    // Mock suggested contacts - prioritize contacts and frequently contacted users
-    suggestedContacts.value = mockUsers
-      .filter(user => user.isContact || user.mutualContacts > 2)
-      .sort((a, b) => {
-        // Prioritize contacts first, then by mutual contacts
-        if (a.isContact && !b.isContact) return -1
-        if (!a.isContact && b.isContact) return 1
-        return (b.mutualContacts || 0) - (a.mutualContacts || 0)
-      })
-      .slice(0, 5)
+  const loadSuggestedContacts = async () => {
+    // Load initial contacts from backend (no keyword)
+    try {
+      if (isLoadingSuggestions.value) return
+      isLoadingSuggestions.value = true
+      const page = 0
+      const size = 20
+      try { console.debug('[userSearch] loadSuggestedContacts fetch start') } catch (_) {}
+      const apiRes = await contactService.getContacts({ page, size })
+      const outer = apiRes?.data || apiRes
+      const dataNode = outer?.data || outer
+      const content = dataNode?.content || []
+
+      const mapped = content.map(item => ({
+        id: item.contactUserId || item.id,
+        name: item.displayName || item.name || item.username,
+        username: item.username,
+        email: item.email,
+        avatar: item.avatarUrl || null,
+        isOnline: (item.presenceStatus || '').toUpperCase() === 'ONLINE',
+        lastSeen: item.lastSeenAt || null,
+        isContact: true,
+        mutualContacts: item.mutualContactsCount || 0,
+        _raw: item
+      }))
+
+      // Keep a modest list for suggestions
+      suggestedContacts.value = mapped.slice(0, 10)
+      try { console.debug('[userSearch] loadSuggestedContacts fetched:', suggestedContacts.value.length) } catch (_) {}
+    } catch (err) {
+      // Fallback to empty suggestions on error
+      try { console.error('[userSearch] loadSuggestedContacts error:', err) } catch (_) {}
+      suggestedContacts.value = []
+    } finally {
+      isLoadingSuggestions.value = false
+    }
   }
 
   const openSearchModal = () => {
     isModalOpen.value = true
-    loadRecentSearches()
-    loadSuggestedContacts()
+    if (!recentSearches.value.length) loadRecentSearches()
+    if (!suggestedContacts.value.length) loadSuggestedContacts()
   }
 
   const closeSearchModal = () => {
@@ -365,9 +391,7 @@ export const useUserSearchStore = defineStore('userSearch', () => {
     if (usersStore) {
       usersStore.addUsers(mockUsers)
     }
-    
-    loadRecentSearches()
-    loadSuggestedContacts()
+    // Do not auto-load here to avoid duplicate calls; openSearchModal handles it on demand
   }
 
   return {

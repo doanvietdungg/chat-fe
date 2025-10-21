@@ -144,10 +144,12 @@
 import { ref, computed, watch } from 'vue'
 import { SearchOutlined, UserOutlined, ClockCircleOutlined } from '@ant-design/icons-vue'
 import { useUserSearchStore } from '../store/userSearch.js'
+import { useChatsStore } from '../store/chats.js'
 import { useChatCreation } from '../composables/useChatCreation.js'
 
 const userSearchStore = useUserSearchStore()
-const { startDraft } = useChatCreation()
+const chatsStore = useChatsStore()
+const { createOrOpenChat, startDraft } = useChatCreation()
 
 const searchQuery = ref('')
 const isSearching = computed(() => userSearchStore.isLoading)
@@ -166,20 +168,17 @@ const searchResults = computed(() => userSearchStore.searchResults)
 const recentSearches = computed(() => userSearchStore.recentSearches)
 const suggestedContacts = computed(() => userSearchStore.suggestedContacts)
 
-// Ensure data is loaded when modal opens
+// Do not auto-load here to prevent duplicate calls; store.openSearchModal() handles initial fetch
 watch(() => visible.value, (isOpen) => {
   if (isOpen) {
-    // Ensure store is initialized and data is loaded
-    try { userSearchStore.init() } catch (_) {}
-    userSearchStore.loadRecentSearches()
-    userSearchStore.loadSuggestedContacts()
+    // no-op; data loading is triggered by store.openSearchModal()
   }
 })
 
 // Trigger debounced search when model changes
 watch(searchQuery, (q) => {
   const query = (q || '').trim()
-  if (query.length >= 2) {
+  if (query.length >= 1) {
     userSearchStore.debouncedSearch(query)
   }
 })
@@ -189,21 +188,26 @@ const handleSearch = async (e) => {
   const query = e.target.value
   searchQuery.value = query
   
-  if (query && query.trim().length >= 2) {
+  if (query && query.trim().length >= 1) {
     userSearchStore.debouncedSearch(query)
   }
 }
 
 const forceSearch = async () => {
   const query = (searchQuery.value || '').trim()
-  if (query.length >= 2) {
+  if (query.length >= 1) {
     await userSearchStore.searchUsers(query, true)
   }
 }
 
 const handleSelectUser = async (user) => {
   try {
-    startDraft(user)
+    const existing = chatsStore.findChatByUserId ? chatsStore.findChatByUserId(user.id) : null
+    if (existing) {
+      await createOrOpenChat(user.id)
+    } else {
+      startDraft(user)
+    }
     userSearchStore.addToRecentSearches(user)
     userSearchStore.closeSearchModal()
     searchQuery.value = ''
