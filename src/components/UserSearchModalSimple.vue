@@ -14,6 +14,7 @@
         size="large"
         class="search-input"
         @input="handleSearch"
+        @pressEnter="forceSearch"
       >
         <template #prefix>
           <SearchOutlined class="search-icon" />
@@ -86,7 +87,7 @@
 
       <!-- Search Results -->
       <div v-if="searchQuery" class="search-results">
-        <div v-if="isLoading" class="loading-state">
+        <div v-if="isSearching" class="loading-state">
           <a-spin size="small" />
           <span>Searching users...</span>
         </div>
@@ -146,10 +147,10 @@ import { useUserSearchStore } from '../store/userSearch.js'
 import { useChatCreation } from '../composables/useChatCreation.js'
 
 const userSearchStore = useUserSearchStore()
-const { createOrOpenChat } = useChatCreation()
+const { startDraft } = useChatCreation()
 
 const searchQuery = ref('')
-const isLoading = ref(false)
+const isSearching = computed(() => userSearchStore.isLoading)
 
 const visible = computed({
   get: () => userSearchStore.isModalOpen,
@@ -165,26 +166,49 @@ const searchResults = computed(() => userSearchStore.searchResults)
 const recentSearches = computed(() => userSearchStore.recentSearches)
 const suggestedContacts = computed(() => userSearchStore.suggestedContacts)
 
-// Mock search function
+// Ensure data is loaded when modal opens
+watch(() => visible.value, (isOpen) => {
+  if (isOpen) {
+    // Ensure store is initialized and data is loaded
+    try { userSearchStore.init() } catch (_) {}
+    userSearchStore.loadRecentSearches()
+    userSearchStore.loadSuggestedContacts()
+  }
+})
+
+// Trigger debounced search when model changes
+watch(searchQuery, (q) => {
+  const query = (q || '').trim()
+  if (query.length >= 2) {
+    userSearchStore.debouncedSearch(query)
+  }
+})
+
+// Search function (debounced in store)
 const handleSearch = async (e) => {
   const query = e.target.value
   searchQuery.value = query
   
   if (query && query.trim().length >= 2) {
-    isLoading.value = true
-    await userSearchStore.searchUsers(query)
-    isLoading.value = false
+    userSearchStore.debouncedSearch(query)
+  }
+}
+
+const forceSearch = async () => {
+  const query = (searchQuery.value || '').trim()
+  if (query.length >= 2) {
+    await userSearchStore.searchUsers(query, true)
   }
 }
 
 const handleSelectUser = async (user) => {
   try {
-    await createOrOpenChat(user.id)
+    startDraft(user)
     userSearchStore.addToRecentSearches(user)
     userSearchStore.closeSearchModal()
     searchQuery.value = ''
   } catch (error) {
-    console.error('Failed to create chat:', error)
+    console.error('Failed to start draft chat:', error)
   }
 }
 

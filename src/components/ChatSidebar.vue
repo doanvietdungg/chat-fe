@@ -130,67 +130,67 @@ function handleLogout() {
     <!-- Chat List -->
     <div class="chat-list-container">
       <div class="chat-list">
-        <div
-          v-for="chat in filteredChats"
-          :key="chat?.id || Math.random()"
-          @click="chat?.id && openChat(chat.id)"
-          :class="['chat-item', { 'active': chat?.id === chatsStore.state.activeChatId }]"
-          v-if="chat && chat.id"
-        >
-          <div class="chat-item-content">
-            <div class="chat-avatar">
-              <a-badge 
-                :count="chat?.unread || 0" 
-                :offset="[5, 5]"
-                :number-style="{ backgroundColor: '#ff4d4f' }"
-              >
-                <a-avatar 
-                  :style="{ backgroundColor: '#1890ff' }"
-                  size="large"
+        <template v-for="chat in filteredChats" :key="chat?.id">
+          <div
+            v-if="chat && chat.id"
+            @click="openChat(chat.id)"
+            :class="['chat-item', { 'active': chat.id === chatsStore.state.activeChatId }]"
+          >
+            <div class="chat-item-content">
+              <div class="chat-avatar">
+                <a-badge 
+                  :count="chat?.unread || 0" 
+                  :offset="[5, 5]"
+                  :number-style="{ backgroundColor: '#ff4d4f' }"
                 >
-                  {{ getChatAvatar(chat) }}
-                </a-avatar>
-              </a-badge>
-            </div>
-            
-            <div class="chat-info">
-              <div class="chat-title">
-                <component 
-                  :is="getChatIcon(chat?.type)" 
-                  class="chat-type-icon"
-                  v-if="chat?.type !== 'private'"
-                />
-                <span class="chat-name text-ellipsis">{{ chat?.title || 'Unknown' }}</span>
+                  <a-avatar 
+                    :style="{ backgroundColor: '#1890ff' }"
+                    size="large"
+                  >
+                    {{ getChatAvatar(chat) }}
+                  </a-avatar>
+                </a-badge>
               </div>
               
-              <div class="chat-description text-ellipsis">
-                {{ formatLastMessage(chat?.last) }}
+              <div class="chat-info">
+                <div class="chat-title">
+                  <component 
+                    :is="getChatIcon(chat?.type)" 
+                    class="chat-type-icon"
+                    v-if="chat?.type !== 'private'"
+                  />
+                  <span class="chat-name text-ellipsis">{{ chat?.title || 'Unknown' }}</span>
+                </div>
+                
+                <div class="chat-description text-ellipsis">
+                  {{ formatLastMessage(chat?.last) }}
+                </div>
               </div>
-            </div>
 
-            <div class="chat-actions">
-              <a-button 
-                type="text" 
-                size="small"
-                :class="{ 'active-action': chat?.pinned }"
-                @click="e => togglePin(e, chat?.id)"
-                :title="chat?.pinned ? 'Bỏ ghim' : 'Ghim'"
-              >
-                <template #icon><PushpinOutlined /></template>
-              </a-button>
-              
-              <a-button 
-                type="text" 
-                size="small"
-                :class="{ 'active-action': chat?.muted }"
-                @click="e => toggleMute(e, chat?.id)"
-                :title="chat?.muted ? 'Bỏ tắt tiếng' : 'Tắt tiếng'"
-              >
-                <template #icon><BellOutlined /></template>
-              </a-button>
+              <div class="chat-actions">
+                <a-button 
+                  type="text" 
+                  size="small"
+                  :class="{ 'active-action': chat?.pinned }"
+                  @click="e => togglePin(e, chat?.id)"
+                  :title="chat?.pinned ? 'Bỏ ghim' : 'Ghim'"
+                >
+                  <template #icon><PushpinOutlined /></template>
+                </a-button>
+                
+                <a-button 
+                  type="text" 
+                  size="small"
+                  :class="{ 'active-action': chat?.muted }"
+                  @click="e => toggleMute(e, chat?.id)"
+                  :title="chat?.muted ? 'Bỏ tắt tiếng' : 'Tắt tiếng'"
+                >
+                  <template #icon><BellOutlined /></template>
+                </a-button>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
         
         <!-- Loading State -->
         <div v-if="chatsStore.state.loading" class="loading-state">

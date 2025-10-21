@@ -18,7 +18,12 @@ import {
   Spin,
   Textarea,
   Form,
-  Checkbox
+  Checkbox,
+  Row,
+  Col,
+  Divider,
+  Tabs,
+  Select
 } from 'ant-design-vue'
 
 // Import Ant Design styles
@@ -46,4 +51,9 @@ export default function setupAntDesign(app) {
   app.use(Textarea)
   app.use(Form)
   app.use(Checkbox)
+  app.use(Row)
+  app.use(Col)
+  app.use(Divider)
+  app.use(Tabs)
+  app.use(Select)
 }

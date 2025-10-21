@@ -164,10 +164,10 @@ const fillDemoAccount = (type) => {
 }
 
 .login-form-content {
-  padding: 40px 40px 32px 40px;
+  padding: 28px 32px 20px 32px;
   margin-bottom: 0;
   display: grid;
-  row-gap: 20px;
+  row-gap: 12px;
 }
 
 .login-form-content > * {
@@ -198,7 +198,7 @@ const fillDemoAccount = (type) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 6px;
 }
 
 /* Ensure form control container uses full width */
@@ -349,7 +349,7 @@ const fillDemoAccount = (type) => {
 
 /* Form item styles */
 :deep(.ant-form-item) {
-  margin-bottom: 36px;
+  margin-bottom: 24px;
 }
 
 :deep(.ant-form-item:last-child) {

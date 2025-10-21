@@ -68,6 +68,20 @@ export function useChatsStore() {
     }
   }
 
+  // Replace a draft chat with a real chat from API (preserve ordering and active state)
+  function replaceChat(oldId, newChat) {
+    if (!oldId || !newChat || !newChat.id) return
+    const index = state.chats.findIndex(c => c && c.id === oldId)
+    if (index !== -1) {
+      state.chats.splice(index, 1, newChat)
+    } else {
+      state.chats.unshift(newChat)
+    }
+    if (state.activeChatId === oldId) {
+      state.activeChatId = newChat.id
+    }
+  }
+
   function findChatByUserId(userId) {
     return state.chats.find(chat => 
       chat && 
@@ -116,6 +130,7 @@ export function useChatsStore() {
     setNotificationLevel, 
     setSearch,
     addChat,
+    replaceChat,
     findChatByUserId,
     setActiveChat,
     removeChat

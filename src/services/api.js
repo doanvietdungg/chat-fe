@@ -9,6 +9,15 @@ const api = axios.create({
   },
 })
 
+// Separate axios instance for refresh to avoid interceptor recursion
+const refreshClient = axios.create({
+  baseURL: (import.meta?.env?.VITE_API_URL) || 'http://localhost:8080/api/v1',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -29,19 +38,25 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const status = error.response?.status
+    const requestUrl = originalRequest?.url || ''
+    const isRefreshCall = requestUrl.includes('/auth/refresh')
+
+    if ((status === 401 || status === 403) && !originalRequest._retry && !isRefreshCall) {
       originalRequest._retry = true
 
       try {
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
-          const response = await api.post('/auth/refresh', {
+          const response = await refreshClient.post('/auth/refresh', {
             refreshToken
           })
 
-          const { token } = response.data
-          const wsUrl = `${(import.meta?.env?.VITE_WS_URL) || 'ws://localhost:3000/ws'}?token=${token}`
+          const token = response?.data?.accessToken || response?.data?.token
+          const newRefresh = response?.data?.refreshToken
+          if (!token) throw new Error('No token in refresh response')
           localStorage.setItem('auth_token', token)
+          if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
           
           // Retry original request with new token
           originalRequest.headers.Authorization = `Bearer ${token}`
@@ -123,6 +138,12 @@ export const searchAPI = {
   searchUsers: (params) => api.get('/search/users', { params })
 }
 
+// Contacts APIs
+export const contactsAPI = {
+  getContacts: (params = {}) => api.get('/contacts', { params }),
+  searchContacts: (q, extraParams = {}) => api.get('/contacts', { params: { q, ...extraParams } })
+}
+
 // Notification APIs
 export const notificationAPI = {
   getNotifications: (params = {}) => api.get('/notifications', { params }),
@@ -140,9 +161,10 @@ export class WebSocketService {
     this.reconnectDelay = 1000
   }
 
-  connect(token) {
+  connect() {
     if (this.socket?.readyState === WebSocket.OPEN) return
-    const wsUrl = `${(import.meta?.env?.VITE_WS_URL) || 'ws://localhost:3000/ws'}?token=${token}`
+    const wsUrl = `${(import.meta?.env?.VITE_WS_URL) || 'http://localhost:8080/ws'}`
+    console.log('WS connect to:', wsUrl)
     try {
       this.socket = new WebSocket(wsUrl)
       this.socket.onopen = () => {
@@ -157,9 +179,13 @@ export class WebSocketService {
       }
       this.socket.onclose = () => {
         this.emit('disconnected')
-        this.attemptReconnect(token)
+        this.attemptReconnect()
       }
       this.socket.onerror = (err) => this.emit('error', err)
+      if (import.meta?.env?.VITE_DEBUG === 'true') {
+        // eslint-disable-next-line no-console
+        console.log('WS connect to:', wsUrl)
+      }
     } catch (_) { /* noop */ }
   }
 
@@ -195,11 +221,11 @@ export class WebSocketService {
     }
   }
 
-  attemptReconnect(token) {
+  attemptReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
-      setTimeout(() => this.connect(token), delay)
+      setTimeout(() => this.connect(), delay)
     }
   }
 

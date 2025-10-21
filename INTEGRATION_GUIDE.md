@@ -5,8 +5,8 @@
 ### 1. Environment Setup
 Create `.env` file in `chat-frontend/`:
 ```env
-VUE_APP_API_URL=http://localhost:3000/api/v1
-VUE_APP_WS_URL=ws://localhost:3000/ws
+VUE_APP_API_URL=http://localhost:8080/api/v1
+VUE_APP_WS_URL=http://localhost:8080/ws
 ```
 
 ### 2. Install Dependencies

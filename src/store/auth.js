@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authAPI } from '../services/api'
+import { stompService } from '../services/stompService'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -29,21 +30,46 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await authAPI.login({ email, password })
       const outer = res?.data || res
       const payload = outer?.data || outer
-      const token = payload?.token
-      const userObj = payload?.user
+      const accessToken = payload?.accessToken || payload?.token
+      const refreshToken = payload?.refreshToken || null
 
-      if (!token || !userObj) {
+      if (!accessToken) {
         throw new Error('Phản hồi đăng nhập không hợp lệ')
+      }
+
+      localStorage.setItem('auth_token', accessToken)
+      if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
+
+      // Use user from payload if present; otherwise fetch /auth/me
+      let userObj = payload?.user || null
+      if (!userObj) {
+        try {
+          const meRes = await authAPI.getMe()
+          const meOuter = meRes?.data || meRes
+          userObj = meOuter?.data || meOuter
+        } catch (_) {
+          userObj = null
+        }
+      }
+
+      if (!userObj) {
+        // Still proceed authenticated but with minimal user shape
+        userObj = { id: null }
       }
 
       user.value = userObj
       isAuthenticated.value = true
 
       localStorage.setItem('auth_user', JSON.stringify(userObj))
-      localStorage.setItem('auth_token', token)
+
+      // Connect STOMP (SockJS)
+      try {
+        stompService.connect()
+      } catch (_) { /* noop */ }
 
       return userObj
     } catch (err) {
+      console.error(err)
       error.value = err.message
       throw err
     } finally {
@@ -64,23 +90,9 @@ export const useAuthStore = defineStore('auth', () => {
         displayName: userData.name,
         phone: userData.phone
       }
-      const res = await authAPI.register(apiBody)
-      const outer = res?.data || res
-      const payload = outer?.data || outer
-      const token = payload?.token
-      const userObj = payload?.user
-
-      if (!token || !userObj) {
-        throw new Error('Phản hồi đăng ký không hợp lệ')
-      }
-
-      user.value = userObj
-      isAuthenticated.value = true
-
-      localStorage.setItem('auth_user', JSON.stringify(userObj))
-      localStorage.setItem('auth_token', token)
-
-      return userObj
+      await authAPI.register(apiBody)
+      // Do not set user/auth state here. Redirect to login will be handled by UI.
+      return true
     } catch (err) {
       error.value = err.message
       throw err
@@ -96,6 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('auth_user')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
+    try { stompService.disconnect() } catch (_) { /* noop */ }
   }
 
   const updateProfile = async (updates) => {

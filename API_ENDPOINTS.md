@@ -386,7 +386,7 @@ http://localhost:3000/api/v1
 
 ### Connection
 ```javascript
-// WebSocket URL: ws://localhost:3000/ws?token=jwt_token
+// WebSocket URL: http://localhost:8080/ws?token=jwt_token
 ```
 
 ### Events

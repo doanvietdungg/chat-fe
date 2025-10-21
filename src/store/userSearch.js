@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { debounce } from '../utils/debounce.js'
 import { validateSearchQuery, sortUsersByRelevance } from '../utils/userHelpers.js'
 import { useUsersStore } from './users'
+import { contactService } from '../services/contactService.js'
 
 // Mock user data for development
 const mockUsers = [
@@ -105,6 +106,7 @@ export const useUserSearchStore = defineStore('userSearch', () => {
 
   // Actions
   const searchUsers = async (query, isRetry = false) => {
+    try { console.debug('[userSearch] searchUsers called:', { query, isRetry, currentPage: currentPage.value, pageSize: pageSize.value }) } catch (_) {}
     // Clear previous error if not a retry
     if (!isRetry) {
       error.value = null
@@ -141,6 +143,7 @@ export const useUserSearchStore = defineStore('userSearch', () => {
     }
 
     const cacheKey = validation.query.toLowerCase()
+    try { console.debug('[userSearch] validated query:', cacheKey) } catch (_) {}
     
     // Check cache first (skip cache on retry)
     if (!isRetry && searchCache.value.has(cacheKey)) {
@@ -159,50 +162,51 @@ export const useUserSearchStore = defineStore('userSearch', () => {
     isLoading.value = true
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // Simulate random network errors for testing (5% chance)
-      if (Math.random() < 0.05) {
-        throw new Error('Network error: Unable to connect to server')
-      }
-      
-      // Mock search results - filter by name, username, or email
-      const filteredUsers = mockUsers.filter(user =>
-        user.name.toLowerCase().includes(validation.query.toLowerCase()) ||
-        user.username.toLowerCase().includes(validation.query.toLowerCase()) ||
-        (user.email && user.email.toLowerCase().includes(validation.query.toLowerCase()))
-      )
-      
-      // Sort by relevance
-      const sortedUsers = sortUsersByRelevance(filteredUsers, validation.query)
-      
-      // Pagination logic
-      totalResults.value = sortedUsers.length
-      const startIndex = (currentPage.value - 1) * pageSize.value
-      const endIndex = startIndex + pageSize.value
-      const paginatedResults = sortedUsers.slice(startIndex, endIndex)
-      
-      hasMoreResults.value = endIndex < sortedUsers.length
-      
-      // Cache the results (full results, not paginated)
+      // Call backend contacts search with pagination
+      const page = Math.max(0, (currentPage.value || 1) - 1)
+      const size = pageSize.value || 20
+      const apiRes = await contactService.getContacts({ q: validation.query, page, size })
+
+      const outer = apiRes?.data || apiRes
+      const dataNode = outer?.data || outer
+
+      const content = dataNode?.content || []
+      const mapped = content.map(item => ({
+        id: item.contactUserId || item.id,
+        name: item.displayName || item.name || item.username,
+        username: item.username,
+        email: item.email,
+        avatar: item.avatarUrl || null,
+        isOnline: (item.presenceStatus || '').toUpperCase() === 'ONLINE',
+        lastSeen: item.lastSeenAt || null,
+        isContact: true,
+        mutualContacts: item.mutualContactsCount || 0,
+        _raw: item
+      }))
+
+      // Optionally sort client-side by relevance if backend doesn't
+      const sortedUsers = sortUsersByRelevance(mapped, validation.query)
+
+      // Pagination indicators from backend
+      totalResults.value = dataNode?.totalElements ?? sortedUsers.length
+      const isLast = dataNode?.last
+      hasMoreResults.value = typeof isLast === 'boolean' ? !isLast : (sortedUsers.length >= size)
+
+      // Cache by query (cache current page snapshot)
       searchCache.value.set(cacheKey, {
         results: sortedUsers,
         timestamp: Date.now()
       })
-      
-      // Limit cache size to prevent memory issues
       if (searchCache.value.size > 50) {
         const firstKey = searchCache.value.keys().next().value
         searchCache.value.delete(firstKey)
       }
-      
-      // Set paginated results
+
+      // Merge into store list
       if (currentPage.value === 1) {
-        searchResults.value = paginatedResults
+        searchResults.value = sortedUsers
       } else {
-        // Append to existing results for infinite scroll
-        searchResults.value = [...searchResults.value, ...paginatedResults]
+        searchResults.value = [...searchResults.value, ...sortedUsers]
       }
       
       // Clear error on success

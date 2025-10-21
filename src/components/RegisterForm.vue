@@ -242,10 +242,10 @@ const handleSubmit = async () => {
 }
 
 .register-form-content {
-  padding: 40px 40px 32px 40px;
+  padding: 28px 32px 20px 32px;
   margin-bottom: 0;
   display: grid;
-  row-gap: 20px;
+  row-gap: 12px;
 }
 
 .register-form-content > * {
@@ -343,7 +343,7 @@ const handleSubmit = async () => {
 
 /* Form item styles */
 :deep(.ant-form-item) {
-  margin-bottom: 36px;
+  margin-bottom: 24px;
 }
 
 :deep(.ant-form-item:last-child) {
