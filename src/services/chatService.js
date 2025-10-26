@@ -4,11 +4,15 @@ export const chatService = {
   // Get list of chats
   async getChats(page = 0, size = 20, sort = 'createdAt,desc') {
     try {
+      console.log('Calling getChats API with params:', { page, size, sort })
       const response = await api.get('/chats', {
         params: { page, size, sort }
       })
+      console.log('getChats API response:', response.data)
       return response.data
     } catch (error) {
+      console.error('getChats API error:', error)
+      console.error('Error response:', error.response?.data)
       const message = error.response?.data?.message ||
         error.response?.data?.error ||
         'Không thể tải danh sách chat'

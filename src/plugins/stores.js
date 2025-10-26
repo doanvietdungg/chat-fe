@@ -34,18 +34,31 @@ export async function initializeChatSystem() {
   const messagesStore = useMessagesStore()
 
   try {
-    // Initialize messages store (this will set up getCurrentUser function)
-    // No specific init needed, just ensure it's instantiated
+    // Initialize messages store with correct user data
+    messagesStore.initializeMockData()
     
-    // Connect to WebSocket
-    chatStore.connect()
+    console.log('Initializing chat system - loading chats from API...')
     
-    // Load chats from API
+    // Load chats from API first (this might fail if backend not ready)
     const chatIds = await chatsStore.loadChats()
     
-    // Subscribe to all user's chats for real-time messages
-    if (chatIds.length > 0) {
-      chatStore.subscribeToChats(chatIds)
+    console.log('Chat system initialized with', chatIds.length, 'chats')
+    
+    // Connect to WebSocket (this might fail if WebSocket server not ready)
+    try {
+      chatStore.connect()
+      
+      // Subscribe to all user's chats for real-time messages (only if connected)
+      if (chatIds.length > 0) {
+        // Wait a bit for connection to establish
+        setTimeout(() => {
+          if (chatStore.state.isConnected) {
+            chatStore.subscribeToChats(chatIds)
+          }
+        }, 1000)
+      }
+    } catch (wsError) {
+      console.warn('WebSocket connection failed, chat will work without real-time updates:', wsError.message)
     }
 
     return { chatStore, chatsStore, messagesStore }

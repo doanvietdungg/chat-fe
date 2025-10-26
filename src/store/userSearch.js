@@ -188,6 +188,12 @@ export const useUserSearchStore = defineStore('userSearch', () => {
       // Optionally sort client-side by relevance if backend doesn't
       const sortedUsers = sortUsersByRelevance(mapped, validation.query)
 
+      // Add found users to users store for future reference
+      const usersStore = useUsersStore()
+      if (usersStore && sortedUsers.length > 0) {
+        usersStore.addUsers(sortedUsers)
+      }
+
       // Pagination indicators from backend
       totalResults.value = dataNode?.totalElements ?? sortedUsers.length
       const isLast = dataNode?.last
@@ -386,11 +392,7 @@ export const useUserSearchStore = defineStore('userSearch', () => {
 
   // Initialize store
   const init = () => {
-    // Add mock users to users store
-    const usersStore = useUsersStore()
-    if (usersStore) {
-      usersStore.addUsers(mockUsers)
-    }
+    // Users store will handle its own initialization with mock data
     // Do not auto-load here to avoid duplicate calls; openSearchModal handles it on demand
   }
 

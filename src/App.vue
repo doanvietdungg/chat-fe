@@ -3,6 +3,7 @@ import { onMounted, computed, watch } from 'vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMain from './components/ChatMain.vue'
 import AuthContainer from './components/AuthContainer.vue'
+import DebugPanel from './components/DebugPanel.vue'
 import { initializeStores, initializeChatSystem } from './plugins/stores'
 import { useAuthStore } from './store/auth'
 
@@ -43,6 +44,7 @@ const handleAuthSuccess = () => {
     <a-layout v-else class="chat-app">
       <ChatSidebar />
       <ChatMain />
+      <DebugPanel />
     </a-layout>
   </div>
 </template>

@@ -12,9 +12,10 @@ const { messagesStore, uiStore } = useStores()
 
 // Group reactions by emoji and check if current user reacted
 const groupedReactions = computed(() => {
+  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
   return props.reactions.map(reaction => ({
     ...reaction,
-    userReacted: reaction.users.includes(messagesStore.state.currentUser.id)
+    userReacted: reaction.users.includes(currentUserId)
   }))
 })
 
@@ -23,8 +24,9 @@ const hasReactions = computed(() => {
 })
 
 function toggleReaction(emoji) {
+  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
   const reaction = props.reactions.find(r => r.emoji === emoji)
-  const userReacted = reaction?.users.includes(messagesStore.state.currentUser.id)
+  const userReacted = reaction?.users.includes(currentUserId)
   
   if (userReacted) {
     messagesStore.removeReaction(props.messageId, emoji)
@@ -39,9 +41,10 @@ function showReactionPicker() {
 
 function showReactionUsers(reaction) {
   // Show tooltip or modal with users who reacted
+  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
   const userNames = reaction.users.map(userId => {
     // In real app, would get user names from user store
-    return userId === messagesStore.state.currentUser.id ? 'You' : `User ${userId.slice(-3)}`
+    return userId === currentUserId ? 'You' : `User ${userId.slice(-3)}`
   })
   
   uiStore.addNotification({

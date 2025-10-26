@@ -2,6 +2,7 @@ import { reactive, computed } from 'vue'
 import { useMessagesStore } from './messages'
 import { useChatsStore } from './chats'
 import { useAuthStore } from './auth'
+import { useUsersStore } from './users'
 import { stompService } from '../services/stompService'
 import { chatService } from '../services/chatService'
 
@@ -67,10 +68,19 @@ export function useChatStore() {
           throw new Error('Không xác định người nhận để tạo cuộc trò chuyện')
         }
         state.loading = true
+        // Get recipient user info for title
+        const usersStore = useUsersStore()
+        const recipientUser = usersStore.ensureUser(state.pendingRecipientId);
+        
+        const recipientName = recipientUser?.name || recipientUser?.username || `User ${state.pendingRecipientId}`
+
         // Create chat via API
         const chatResponse = await chatService.createChat({
           type: 'PRIVATE',
+          title: recipientName,
+          description: null,
           otherUserId: state.pendingRecipientId,
+          participants: null
         })
 
         // Handle response structure: { success: true, data: { id: "...", ... } }
@@ -103,13 +113,16 @@ export function useChatStore() {
       const currentUser = authStore.user
 
       // Add message optimistically to local store BEFORE sending
-      const optimisticMessage = messagesStore.addMessage({
+      const messageData = {
         ...payload,
         id: cryptoRandomId(), // Generate temporary ID
         timestamp: new Date().toISOString(),
         authorId: currentUser?.id || 'current_user',
         author: currentUser?.name || currentUser?.username || 'You',
-      })
+      }
+
+      console.log('Sending message with data:', messageData)
+      const optimisticMessage = messagesStore.addMessage(messageData)
 
       // Send via STOMP WebSocket
       stompService.send('/app/messages.send', payload)
@@ -124,6 +137,11 @@ export function useChatStore() {
 
   function setCurrentChat(chatId) {
     state.currentChatId = chatId
+    
+    // Clear unread count for this chat
+    const chatsStore = useChatsStore()
+    chatsStore.clearUnread(chatId)
+    
     // Subscribe to this chat for real-time messages
     if (chatId && !chatId.startsWith('draft-')) {
       subscribeToChat(chatId)
@@ -159,7 +177,7 @@ export function useChatStore() {
         // Only add message if it's not from current user (avoid duplicates)
         // Current user's messages are already added optimistically
         if (message.authorId !== currentUserId) {
-          messagesStore.addMessage({
+          const addedMessage = messagesStore.addMessage({
             id: message.id,
             chatId: message.chatId,
             text: message.text,
@@ -167,6 +185,11 @@ export function useChatStore() {
             timestamp: message.createdAt || new Date().toISOString(),
             type: message.type || 'TEXT'
           })
+          
+          // Update chat's last message and increment unread
+          const chatsStore = useChatsStore()
+          chatsStore.updateChatLastMessage(message.chatId, addedMessage)
+          chatsStore.incrementUnread(message.chatId)
         }
       }
     })

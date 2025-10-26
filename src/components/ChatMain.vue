@@ -10,36 +10,10 @@ const { chatStore, messagesStore, sendMessage } = useStores()
 const currentMessages = computed(() => {
   const messages = messagesStore.getMessagesForChat(chatStore.state.currentChatId)
   console.log('Current chat ID:', chatStore.state.currentChatId)
-  console.log('Messages for chat:', messages)
-  console.log('All messages in store:', messagesStore.state.messages)
+  console.log('Messages for chat:', messages?.length || 0, 'messages')
   
-  // Fallback: if no messages found, return sample messages
-  if (!messages || messages.length === 0) {
-    return [
-      {
-        id: 'sample-1',
-        text: 'Xin chào! Đây là tin nhắn mẫu.',
-        author: 'Sample User',
-        authorId: 'sample-user',
-        timestamp: new Date().toISOString(),
-        at: new Date().toISOString(),
-        reactions: [],
-        type: 'text'
-      },
-      {
-        id: 'sample-2', 
-        text: 'Tin nhắn thứ hai để test giao diện.',
-        author: chatStore.state.username,
-        authorId: 'user-me',
-        timestamp: new Date().toISOString(),
-        at: new Date().toISOString(),
-        reactions: [],
-        type: 'text'
-      }
-    ]
-  }
-  
-  return messages
+  // Return real messages or empty array
+  return messages || []
 })
 
 onMounted(() => {
@@ -75,7 +49,7 @@ function handleAttach(file) {
       <MessageArea 
         :messages="currentMessages" 
         :username="chatStore.state.username"
-        :loading="chatStore.state.loading || false"
+        :loading="messagesStore.state?.loading || false"
       />
     </div>
     

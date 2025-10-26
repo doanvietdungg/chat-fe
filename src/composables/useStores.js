@@ -52,7 +52,7 @@ export function useStores() {
     const message = messagesStore.getMessageById(messageId)
     if (!message) return
 
-    const isOwnMessage = message.authorId === messagesStore.state.currentUser.id
+    const isOwnMessage = message.authorId === messagesStore.getCurrentUser().id
     
     const options = [
       { label: 'Reply', action: 'reply', icon: 'ReplyOutlined' },

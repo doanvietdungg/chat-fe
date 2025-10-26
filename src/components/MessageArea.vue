@@ -11,6 +11,7 @@ import MessageReactions from './MessageReactions.vue'
 import QuickReactions from './QuickReactions.vue'
 import ReactionPicker from './ReactionPicker.vue'
 import { useStores } from '../composables/useStores'
+import { useAuthStore } from '../store/auth'
 
 const props = defineProps({
   messages: { type: Array, required: true },
@@ -19,6 +20,7 @@ const props = defineProps({
 })
 
 const { messagesStore, uiStore, showContextMenu } = useStores()
+const authStore = useAuthStore()
 
 const messageContainer = ref(null)
 const hoveredMessageId = ref(null)
@@ -27,13 +29,18 @@ const showQuickReactions = ref(null)
 const processedMessages = computed(() => {
   console.log('Processing messages:', props.messages)
   
-  const messages = props.messages.map(message => ({
-    ...message,
-    isOwn: message.author === props.username || message.authorId === 'user-me',
-    formattedTime: formatTime(message.timestamp || message.at),
-    authorInitial: message.author?.[0]?.toUpperCase() || '?',
-    timestamp: new Date(message.timestamp || message.at).getTime()
-  }))
+  const messages = props.messages.map(message => {
+    const isOwn = message.authorId === authStore.user?.id
+    console.log(`Message ${message.id}: authorId=${message.authorId}, currentUserId=${authStore.user?.id}, isOwn=${isOwn}`)
+    
+    return {
+      ...message,
+      isOwn,
+      formattedTime: formatTime(message.timestamp || message.at),
+      authorInitial: message.author?.[0]?.toUpperCase() || '?',
+      timestamp: new Date(message.timestamp || message.at).getTime()
+    }
+  })
 
   // Group messages by time and author
   return messages.map((message, index) => {

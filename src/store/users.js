@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { contactService } from '../services/contactService.js'
 
 export const useUsersStore = defineStore('users', () => {
   // State
   const users = ref(new Map())
   const currentUser = ref(null)
   const isLoading = ref(false)
+  const loadingUserIds = ref(new Set()) // Track which users are being loaded
 
   // Mock current user data
   const mockCurrentUser = {
@@ -18,6 +20,60 @@ export const useUsersStore = defineStore('users', () => {
     isOnline: true,
     lastSeen: null
   }
+
+  // Mock users for development (fallback)
+  const mockUsers = [
+    {
+      id: '1',
+      name: 'Alice Johnson',
+      username: 'alice_j',
+      email: 'alice@example.com',
+      avatar: null,
+      bio: 'Software developer passionate about Vue.js',
+      isOnline: true,
+      lastSeen: null
+    },
+    {
+      id: '2',
+      name: 'Bob Smith',
+      username: 'bob_smith',
+      email: 'bob@example.com',
+      avatar: null,
+      bio: 'Designer and coffee enthusiast',
+      isOnline: false,
+      lastSeen: '2024-01-15T10:30:00Z'
+    },
+    {
+      id: '3',
+      name: 'Carol Davis',
+      username: 'carol_d',
+      email: 'carol@example.com',
+      avatar: null,
+      bio: 'Product manager at tech startup',
+      isOnline: true,
+      lastSeen: null
+    },
+    {
+      id: '4',
+      name: 'David Wilson',
+      username: 'david_w',
+      email: 'david@example.com',
+      avatar: null,
+      bio: 'Full-stack developer and tech blogger',
+      isOnline: false,
+      lastSeen: '2024-01-14T15:45:00Z'
+    },
+    {
+      id: '5',
+      name: 'Eva Martinez',
+      username: 'eva_m',
+      email: 'eva@example.com',
+      avatar: null,
+      bio: 'UX researcher and design systems advocate',
+      isOnline: true,
+      lastSeen: null
+    }
+  ]
 
   // Computed
   const allUsers = computed(() => Array.from(users.value.values()))
@@ -58,17 +114,138 @@ export const useUsersStore = defineStore('users', () => {
   }
 
   const getUserById = (userId) => {
-    return users.value.get(userId)
+    if (!userId) return null
+    
+    // Return user if already in store
+    const existingUser = users.value.get(userId)
+    if (existingUser) {
+      return existingUser
+    }
+    
+    // If user not found and not currently loading, try to load from API
+    if (!loadingUserIds.value.has(userId)) {
+      loadUserById(userId)
+    }
+    
+    return null
+  }
+
+  // Load user from API by ID
+  const loadUserById = async (userId) => {
+    if (!userId || loadingUserIds.value.has(userId)) return null
+    
+    loadingUserIds.value.add(userId)
+    
+    try {
+      // Try to get user info from contacts API
+      const response = await contactService.getContacts({ q: userId, page: 0, size: 1 })
+      const outer = response?.data || response
+      const dataNode = outer?.data || outer
+      const content = dataNode?.content || []
+      
+      if (content.length > 0) {
+        const userInfo = content[0]
+        const normalizedUser = {
+          id: userInfo.contactUserId || userInfo.id || userId,
+          name: userInfo.displayName || userInfo.name || userInfo.username || `User ${userId}`,
+          username: userInfo.username || `user_${userId}`,
+          email: userInfo.email || null,
+          avatar: userInfo.avatarUrl || null,
+          bio: userInfo.bio || null,
+          isOnline: (userInfo.presenceStatus || '').toUpperCase() === 'ONLINE',
+          lastSeen: userInfo.lastSeenAt || null
+        }
+        
+        users.value.set(userId, normalizedUser)
+        return normalizedUser
+      }
+    } catch (error) {
+      console.warn(`Failed to load user ${userId} from API:`, error)
+    }
+    
+    // Fallback: create a minimal user object
+    const fallbackUser = {
+      id: userId,
+      name: `User ${userId}`,
+      username: `user_${userId}`,
+      email: null,
+      avatar: null,
+      bio: null,
+      isOnline: false,
+      lastSeen: null
+    }
+    
+    users.value.set(userId, fallbackUser)
+    loadingUserIds.value.delete(userId)
+    return fallbackUser
+  }
+
+  // Load multiple users by IDs
+  const loadUsersByIds = async (userIds) => {
+    if (!Array.isArray(userIds) || userIds.length === 0) return []
+    
+    const uniqueIds = [...new Set(userIds)].filter(id => id && !users.value.has(id))
+    if (uniqueIds.length === 0) return getUsersByIds(userIds)
+    
+    const loadPromises = uniqueIds.map(id => loadUserById(id))
+    await Promise.allSettled(loadPromises)
+    
+    return getUsersByIds(userIds)
   }
 
   const addUser = (user) => {
-    users.value.set(user.id, user)
+    if (!user || !user.id) return
+    
+    // Normalize user data
+    const normalizedUser = {
+      id: user.id,
+      name: user.name || user.displayName || user.username || `User ${user.id}`,
+      username: user.username || `user_${user.id}`,
+      email: user.email || null,
+      avatar: user.avatar || user.avatarUrl || null,
+      bio: user.bio || null,
+      isOnline: user.isOnline || false,
+      lastSeen: user.lastSeen || user.lastSeenAt || null,
+      // Keep any additional fields
+      ...user
+    }
+    
+    users.value.set(user.id, normalizedUser)
+    // Remove from loading set if it was being loaded
+    loadingUserIds.value.delete(user.id)
   }
 
   const addUsers = (userList) => {
+    if (!Array.isArray(userList)) return
+    
     userList.forEach(user => {
-      users.value.set(user.id, user)
+      if (user && user.id) {
+        addUser(user)
+      }
     })
+  }
+
+  // Ensure user exists (create minimal if not found)
+  const ensureUser = (userId, fallbackData = {}) => {
+    if (!userId) return null
+    
+    let user = users.value.get(userId)
+    if (!user) {
+      user = {
+        id: userId,
+        name: fallbackData.name || `User ${userId}`,
+        username: fallbackData.username || `user_${userId}`,
+        email: fallbackData.email || null,
+        avatar: fallbackData.avatar || null,
+        bio: fallbackData.bio || null,
+        isOnline: fallbackData.isOnline || false,
+        lastSeen: fallbackData.lastSeen || null,
+        ...fallbackData
+      }
+      users.value.set(userId, user)
+    }
+    
+    return user
   }
 
   const updateUser = (userId, updates) => {
@@ -140,9 +317,24 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
+  // Clear all users (useful for logout)
+  const clearUsers = () => {
+    users.value.clear()
+    loadingUserIds.value.clear()
+  }
+
+  // Initialize store with mock data
+  const initializeMockUsers = () => {
+    mockUsers.forEach(user => {
+      users.value.set(user.id, user)
+    })
+  }
+
   // Initialize store
   const init = () => {
     loadCurrentUser()
+    // Load mock users for development
+    initializeMockUsers()
   }
 
   return {
@@ -150,6 +342,7 @@ export const useUsersStore = defineStore('users', () => {
     users,
     currentUser,
     isLoading,
+    loadingUserIds,
     
     // Computed
     allUsers,
@@ -159,8 +352,11 @@ export const useUsersStore = defineStore('users', () => {
     // Actions
     loadCurrentUser,
     getUserById,
+    loadUserById,
+    loadUsersByIds,
     addUser,
     addUsers,
+    ensureUser,
     updateUser,
     updateUserOnlineStatus,
     removeUser,
@@ -168,6 +364,8 @@ export const useUsersStore = defineStore('users', () => {
     getUsersByIds,
     formatLastSeen,
     updateCurrentUser,
+    clearUsers,
+    initializeMockUsers,
     init
   }
 })

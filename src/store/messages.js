@@ -3,68 +3,56 @@ import { useAuthStore } from './auth'
 
 // Enhanced message state with Telegram-like features
 const state = reactive({
+  loading: false,
   messages: [
-    // Sample messages with enhanced structure
+    // Chat với Linh Nguyễn
     {
       id: 'msg-1',
       chatId: 'friend-1',
       text: 'Chào bạn! Hôm nay thế nào?',
-      author: 'Linh',
+      author: 'Linh Nguyễn',
       authorId: 'user-linh',
-      timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-      at: new Date(Date.now() - 3600000).toISOString(), // For compatibility
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      at: new Date(Date.now() - 3600000).toISOString(),
       edited: false,
       editedAt: null,
-      reactions: [
-        { emoji: '👍', users: ['user-me'], count: 1 },
-        { emoji: '❤️', users: ['user-me', 'user-linh'], count: 2 }
-      ],
+      reactions: [],
       replyTo: null,
       forwarded: null,
-      readBy: [
-        { userId: 'user-me', readAt: new Date().toISOString() }
-      ],
+      readBy: [],
       media: null,
       voice: null,
       type: 'text'
     },
     {
-      id: 'msg-2', 
+      id: 'msg-2',
       chatId: 'friend-1',
       text: 'Tôi ổn! Cảm ơn bạn đã hỏi 😊',
-      author: 'User-123',
-      authorId: 'user-me',
-      timestamp: new Date(Date.now() - 3000000).toISOString(), // 50 min ago
-      at: new Date(Date.now() - 3000000).toISOString(), // For compatibility
+      author: 'You',
+      authorId: 'current_user',
+      timestamp: new Date(Date.now() - 3000000).toISOString(),
+      at: new Date(Date.now() - 3000000).toISOString(),
       edited: false,
       editedAt: null,
       reactions: [],
-      replyTo: {
-        id: 'msg-1',
-        text: 'Chào bạn! Hôm nay thế nào?',
-        author: 'Linh'
-      },
+      replyTo: null,
       forwarded: null,
-      readBy: [
-        { userId: 'user-linh', readAt: new Date().toISOString() }
-      ],
+      readBy: [],
       media: null,
       voice: null,
       type: 'text'
     },
     {
       id: 'msg-3',
-      chatId: 'friend-1', 
+      chatId: 'friend-1',
       text: 'Bạn có rảnh không? Mình muốn hỏi về dự án.',
-      author: 'Linh',
+      author: 'Linh Nguyễn',
       authorId: 'user-linh',
-      timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 min ago
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
       at: new Date(Date.now() - 1800000).toISOString(),
       edited: false,
       editedAt: null,
-      reactions: [
-        { emoji: '👍', users: ['user-me'], count: 1 }
-      ],
+      reactions: [],
       replyTo: null,
       forwarded: null,
       readBy: [],
@@ -76,18 +64,92 @@ const state = reactive({
       id: 'msg-4',
       chatId: 'friend-1',
       text: 'Có chứ! Bạn cần hỗ trợ gì?',
-      author: 'User-123', 
-      authorId: 'user-me',
-      timestamp: new Date(Date.now() - 1200000).toISOString(), // 20 min ago
+      author: 'You',
+      authorId: 'current_user',
+      timestamp: new Date(Date.now() - 1200000).toISOString(),
       at: new Date(Date.now() - 1200000).toISOString(),
       edited: false,
       editedAt: null,
       reactions: [],
       replyTo: null,
       forwarded: null,
-      readBy: [
-        { userId: 'user-linh', readAt: new Date().toISOString() }
-      ],
+      readBy: [],
+      media: null,
+      voice: null,
+      type: 'text'
+    },
+    {
+      id: 'msg-5',
+      chatId: 'friend-1',
+      text: 'Hẹn gặp chiều nay nhé! 😊',
+      author: 'Linh Nguyễn',
+      authorId: 'user-linh',
+      timestamp: new Date(Date.now() - 300000).toISOString(),
+      at: new Date(Date.now() - 300000).toISOString(),
+      edited: false,
+      editedAt: null,
+      reactions: [],
+      replyTo: null,
+      forwarded: null,
+      readBy: [],
+      media: null,
+      voice: null,
+      type: 'text'
+    },
+
+    // Chat với Minh Trần
+    {
+      id: 'msg-6',
+      chatId: 'friend-2',
+      text: 'Code review xong chưa?',
+      author: 'Minh Trần',
+      authorId: 'user-minh',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      at: new Date(Date.now() - 1800000).toISOString(),
+      edited: false,
+      editedAt: null,
+      reactions: [],
+      replyTo: null,
+      forwarded: null,
+      readBy: [],
+      media: null,
+      voice: null,
+      type: 'text'
+    },
+
+    // Chat nhóm Team Frontend
+    {
+      id: 'msg-7',
+      chatId: 'group-1',
+      text: 'Ai có thể review PR #123?',
+      author: 'Minh Trần',
+      authorId: 'user-minh',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      at: new Date(Date.now() - 3600000).toISOString(),
+      edited: false,
+      editedAt: null,
+      reactions: [],
+      replyTo: null,
+      forwarded: null,
+      readBy: [],
+      media: null,
+      voice: null,
+      type: 'text'
+    },
+    {
+      id: 'msg-8',
+      chatId: 'group-1',
+      text: 'Mình có thể review được!',
+      author: 'You',
+      authorId: 'current_user',
+      timestamp: new Date(Date.now() - 3500000).toISOString(),
+      at: new Date(Date.now() - 3500000).toISOString(),
+      edited: false,
+      editedAt: null,
+      reactions: [],
+      replyTo: null,
+      forwarded: null,
+      readBy: [],
       media: null,
       voice: null,
       type: 'text'
@@ -106,14 +168,51 @@ export function useMessagesStore() {
   // Get current user from auth store
   function getCurrentUser() {
     const authStore = useAuthStore()
-    return authStore.user || { id: 'user-me', name: 'You' }
+    return authStore.user || { id: 'current_user', name: 'You' }
+  }
+
+  // Initialize mock data with correct user ID
+  function initializeMockData() {
+    const currentUserId = getCurrentUser().id
+
+    // Update mock messages to use correct current user ID
+    state.messages.forEach(message => {
+      if (message.authorId === 'user-me') {
+        message.authorId = currentUserId
+        message.author = getCurrentUser().name
+      }
+
+      // Update reactions
+      if (message.reactions) {
+        message.reactions.forEach(reaction => {
+          reaction.users = reaction.users.map(userId =>
+            userId === 'user-me' ? currentUserId : userId
+          )
+        })
+      }
+
+      // Update readBy
+      if (message.readBy) {
+        message.readBy.forEach(read => {
+          if (read.userId === 'user-me') {
+            read.userId = currentUserId
+          }
+        })
+      }
+    })
   }
   // Message CRUD operations
   function setMessagesForChat(chatId, apiData) {
     if (!chatId) return
-    const outer = apiData?.data || apiData
-    const node = outer?.data || outer
-    const list = Array.isArray(node?.content) ? node.content : (Array.isArray(node) ? node : [])
+
+    // Handle API response structure: { data: { content: [...] } } or direct { content: [...] }
+    const responseData = apiData?.data || apiData
+    const content = responseData?.content || []
+
+    if (!Array.isArray(content)) {
+      console.warn('Invalid messages data format:', responseData)
+      return
+    }
 
     // Remove existing messages for this chat
     for (let i = state.messages.length - 1; i >= 0; i--) {
@@ -122,29 +221,61 @@ export function useMessagesStore() {
       }
     }
 
-    // Map API items to local message shape and insert (oldest first)
-    const mapped = list.map(it => ({
-      id: it.id || `msg-${Math.random().toString(36).slice(2)}`,
-      chatId: it.chatId || chatId,
-      text: it.text || it.content || it.body || '',
-      author: it.author?.name || it.senderName || it.sender || 'Unknown',
-      authorId: it.authorId || it.senderId || it.userId || 'unknown',
-      timestamp: it.createdAt || it.timestamp || new Date().toISOString(),
-      at: it.createdAt || it.timestamp || new Date().toISOString(),
-      edited: !!it.edited,
-      editedAt: it.editedAt || null,
-      reactions: Array.isArray(it.reactions) ? it.reactions : [],
-      replyTo: it.replyTo || null,
-      forwarded: it.forwarded || null,
-      readBy: Array.isArray(it.readBy) ? it.readBy : [],
-      media: it.media || null,
-      voice: it.voice || null,
-      type: it.type || 'text'
+    // Map API messages to local message format
+    const mapped = content.map(message => ({
+      id: message.id,
+      chatId: message.chatId || chatId,
+      text: message.text || '',
+      author: 'Unknown', // Will be resolved from users store
+      authorId: message.authorId,
+      timestamp: message.createdAt || new Date().toISOString(),
+      at: message.createdAt || new Date().toISOString(),
+      edited: message.createdAt !== message.updatedAt,
+      editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
+      reactions: [],
+      replyTo: null,
+      forwarded: null,
+      readBy: [],
+      media: message.fileId ? { fileId: message.fileId } : null,
+      voice: null,
+      type: message.type?.toLowerCase() || 'text'
     }))
 
-    // Ensure chronological order if backend returns desc
-    const inAsc = mapped.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-    state.messages.push(...inAsc)
+    // Sort messages by timestamp (oldest first for display)
+    const sortedMessages = mapped.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+
+    // Add messages to store
+    state.messages.push(...sortedMessages)
+
+    // Resolve author names from users store
+    resolveMessageAuthors(sortedMessages)
+  }
+
+  // Helper function to resolve author names from users store
+  function resolveMessageAuthors(messages) {
+    // Import users store dynamically to avoid circular dependency
+    import('./users.js').then(({ useUsersStore }) => {
+      const usersStore = useUsersStore()
+
+      messages.forEach(message => {
+        if (message.authorId && message.author === 'Unknown') {
+          const user = usersStore.getUserById(message.authorId)
+          if (user) {
+            message.author = user.name || user.username || `User ${message.authorId}`
+          } else {
+            // Fallback name while user is being loaded
+            message.author = `User ${message.authorId.slice(-4)}`
+          }
+        }
+      })
+    }).catch(() => {
+      // Fallback if users store not available
+      messages.forEach(message => {
+        if (message.author === 'Unknown') {
+          message.author = `User ${message.authorId?.slice(-4) || 'Unknown'}`
+        }
+      })
+    })
   }
 
   function addMessage(messageData) {
@@ -154,34 +285,49 @@ export function useMessagesStore() {
       text: messageData.text || '',
       author: messageData.author || getCurrentUser().name,
       authorId: messageData.authorId || getCurrentUser().id,
-      timestamp: messageData.timestamp || new Date().toISOString(),
-      at: messageData.timestamp || new Date().toISOString(), // For compatibility
-      edited: messageData.edited || false,
-      editedAt: messageData.editedAt || null,
+      timestamp: messageData.timestamp || messageData.createdAt || new Date().toISOString(),
+      at: messageData.timestamp || messageData.createdAt || new Date().toISOString(),
+      edited: messageData.edited || (messageData.createdAt !== messageData.updatedAt),
+      editedAt: messageData.editedAt || (messageData.createdAt !== messageData.updatedAt ? messageData.updatedAt : null),
       reactions: messageData.reactions || [],
       replyTo: messageData.replyTo || null,
       forwarded: messageData.forwarded || null,
       readBy: messageData.readBy || [],
-      media: messageData.media || null,
+      media: messageData.media || (messageData.fileId ? { fileId: messageData.fileId } : null),
       voice: messageData.voice || null,
-      type: messageData.type || 'text'
+      type: (messageData.type || 'text').toLowerCase()
     }
-    
+
     // Check if message already exists (avoid duplicates)
     const existingIndex = state.messages.findIndex(m => m.id === message.id)
     if (existingIndex !== -1) {
       // Update existing message
       state.messages[existingIndex] = message
     } else {
-      // Add new message
-      state.messages.push(message)
+      // Add new message in chronological order
+      const insertIndex = state.messages.findIndex(m =>
+        m.chatId === message.chatId && new Date(m.timestamp) > new Date(message.timestamp)
+      )
+
+      if (insertIndex === -1) {
+        // Add at the end
+        state.messages.push(message)
+      } else {
+        // Insert at correct position
+        state.messages.splice(insertIndex, 0, message)
+      }
     }
-    
+
+    // Resolve author name if not provided
+    if (message.author === getCurrentUser().name && message.authorId !== getCurrentUser().id) {
+      resolveMessageAuthors([message])
+    }
+
     // Clear reply state after sending (only for current user messages)
     if (state.replyingTo && message.authorId === getCurrentUser().id) {
       state.replyingTo = null
     }
-    
+
     return message
   }
 
@@ -229,14 +375,14 @@ export function useMessagesStore() {
     if (!message) return false
 
     const existingReaction = message.reactions.find(r => r.emoji === emoji)
-    
+
     if (existingReaction) {
       // Toggle user's reaction
       const userIndex = existingReaction.users.indexOf(getCurrentUser().id)
       if (userIndex > -1) {
         existingReaction.users.splice(userIndex, 1)
         existingReaction.count--
-        
+
         // Remove reaction if no users left
         if (existingReaction.count === 0) {
           const reactionIndex = message.reactions.indexOf(existingReaction)
@@ -254,7 +400,7 @@ export function useMessagesStore() {
         count: 1
       })
     }
-    
+
     return true
   }
 
@@ -266,11 +412,11 @@ export function useMessagesStore() {
     if (reactionIndex > -1) {
       const reaction = message.reactions[reactionIndex]
       const userIndex = reaction.users.indexOf(getCurrentUser().id)
-      
+
       if (userIndex > -1) {
         reaction.users.splice(userIndex, 1)
         reaction.count--
-        
+
         if (reaction.count === 0) {
           message.reactions.splice(reactionIndex, 1)
         }
@@ -312,7 +458,7 @@ export function useMessagesStore() {
   // Typing indicators
   function setTyping(userId, isTyping) {
     const index = state.typingUsers.indexOf(userId)
-    
+
     if (isTyping && index === -1) {
       state.typingUsers.push(userId)
     } else if (!isTyping && index > -1) {
@@ -341,27 +487,27 @@ export function useMessagesStore() {
   // Search functionality
   function searchMessages(query, filters = {}) {
     state.isSearching = true
-    
+
     // Simple client-side search (would be server-side in real app)
     const results = state.messages.filter(message => {
       // Text search
       const textMatch = !query || message.text.toLowerCase().includes(query.toLowerCase())
-      
+
       // Author filter
       const authorMatch = !filters.author || message.authorId === filters.author
-      
+
       // Date filter
       const dateMatch = !filters.dateRange || (
         new Date(message.timestamp) >= filters.dateRange[0] &&
         new Date(message.timestamp) <= filters.dateRange[1]
       )
-      
+
       // Type filter
       const typeMatch = !filters.type || message.type === filters.type
-      
+
       return textMatch && authorMatch && dateMatch && typeMatch
     })
-    
+
     state.searchResults = results
     state.isSearching = false
     return results
@@ -375,7 +521,7 @@ export function useMessagesStore() {
   // Forward messages
   function forwardMessages(messageIds, targetChatIds) {
     const messagesToForward = state.messages.filter(m => messageIds.includes(m.id))
-    
+
     messagesToForward.forEach(originalMessage => {
       targetChatIds.forEach(chatId => {
         const forwardedMessage = {
@@ -391,11 +537,11 @@ export function useMessagesStore() {
           reactions: [], // Reset reactions for forwarded messages
           readBy: []
         }
-        
+
         state.messages.push(forwardedMessage)
       })
     })
-    
+
     clearSelection()
     return true
   }
@@ -406,7 +552,7 @@ export function useMessagesStore() {
     if (message) {
       const readerId = userId || getCurrentUser().id
       const existingRead = message.readBy.find(r => r.userId === readerId)
-      
+
       if (!existingRead) {
         message.readBy.push({
           userId: readerId,
@@ -447,50 +593,165 @@ export function useMessagesStore() {
     return state.messages.filter(m => m.chatId === chatId)
   }
 
+  // Load messages from API for a specific chat
+  async function loadMessagesForChat(chatId, params = {}) {
+    if (!chatId) return []
+
+    state.loading = true
+
+    try {
+      // Import messageAPI dynamically to avoid circular dependency
+      const { messageAPI } = await import('../services/api.js')
+
+      const defaultParams = {
+        page: 0,
+        size: 50,
+        sort: 'createdAt,desc'
+      }
+
+      console.log('Loading messages for chat:', chatId, 'with params:', { ...defaultParams, ...params })
+      const response = await messageAPI.getMessages(chatId, { ...defaultParams, ...params })
+      console.log('Messages API response:', response)
+
+      setMessagesForChat(chatId, response)
+
+      return getMessagesForChat(chatId)
+    } catch (error) {
+      console.error(`Failed to load messages for chat ${chatId}:`, error)
+      return []
+    } finally {
+      state.loading = false
+    }
+  }
+
+  // Load more messages (pagination)
+  async function loadMoreMessages(chatId, page = 1, size = 50) {
+    if (!chatId) return []
+
+    try {
+      const { messageAPI } = await import('../services/api.js')
+
+      const response = await messageAPI.getMessages(chatId, {
+        page,
+        size,
+        sort: 'createdAt,desc'
+      })
+
+      const responseData = response?.data || response
+      const content = responseData?.content || []
+
+      if (Array.isArray(content) && content.length > 0) {
+        // Map and add older messages
+        const mapped = content.map(message => ({
+          id: message.id,
+          chatId: message.chatId || chatId,
+          text: message.text || '',
+          author: 'Unknown',
+          authorId: message.authorId,
+          timestamp: message.createdAt || new Date().toISOString(),
+          at: message.createdAt || new Date().toISOString(),
+          edited: message.createdAt !== message.updatedAt,
+          editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
+          reactions: [],
+          replyTo: null,
+          forwarded: null,
+          readBy: [],
+          media: message.fileId ? { fileId: message.fileId } : null,
+          voice: null,
+          type: message.type?.toLowerCase() || 'text'
+        }))
+
+        // Insert older messages at the beginning
+        const existingMessages = state.messages.filter(m => m.chatId === chatId)
+        const newMessages = mapped.filter(newMsg =>
+          !existingMessages.some(existing => existing.id === newMsg.id)
+        )
+
+        // Sort and insert at correct positions
+        newMessages.forEach(newMessage => {
+          const insertIndex = state.messages.findIndex(m =>
+            m.chatId === chatId && new Date(m.timestamp) > new Date(newMessage.timestamp)
+          )
+
+          if (insertIndex === -1) {
+            // Find the last message of this chat and insert after
+            const lastChatMessageIndex = state.messages.map((m, i) => m.chatId === chatId ? i : -1)
+              .filter(i => i !== -1).pop()
+
+            if (lastChatMessageIndex !== undefined) {
+              state.messages.splice(lastChatMessageIndex + 1, 0, newMessage)
+            } else {
+              state.messages.push(newMessage)
+            }
+          } else {
+            state.messages.splice(insertIndex, 0, newMessage)
+          }
+        })
+
+        // Resolve author names
+        resolveMessageAuthors(newMessages)
+
+        return newMessages
+      }
+
+      return []
+    } catch (error) {
+      console.error(`Failed to load more messages for chat ${chatId}:`, error)
+      return []
+    }
+  }
+
   return {
     state,
-    
+
+    // User info
+    getCurrentUser,
+    initializeMockData,
+
     // Message operations
     setMessagesForChat,
+    loadMessagesForChat,
+    loadMoreMessages,
     addMessage,
     editMessage,
     deleteMessage,
     undoDelete,
-    
+
     // Reactions
     addReaction,
     removeReaction,
-    
+
     // Replies
     setReplyTo,
     clearReply,
-    
+
     // Editing
     startEdit,
     cancelEdit,
-    
+
     // Typing
     setTyping,
-    
+
     // Selection
     toggleMessageSelection,
     clearSelection,
     selectAllMessages,
-    
+
     // Search
     searchMessages,
     clearSearch,
-    
+
     // Forwarding
     forwardMessages,
-    
+
     // Read receipts
     markAsRead,
-    
+
     // Utilities
     getMessageById,
     getMessagesForChat,
-    
+    resolveMessageAuthors,
+
     // Computed
     currentChatMessages,
     hasSelectedMessages,

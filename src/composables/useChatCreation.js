@@ -3,7 +3,7 @@ import { useChatCreationStore } from '../store/chatCreation.js'
 import { useChatsStore } from '../store/chats.js'
 import { useUsersStore } from '../store/users.js'
 import { useChatStore } from '../store/chat.js'
-import { chatAPI, messageAPI } from '../services/api.js'
+import { chatAPI } from '../services/api.js'
 import { useMessagesStore } from '../store/messages.js'
 
 export function useChatCreation() {
@@ -20,6 +20,9 @@ export function useChatCreation() {
   const startDraft = (user) => {
     if (!user || !user.id) throw new Error('User is required')
     const draftId = `draft-${user.id}`
+
+    // Ensure user exists in users store
+    usersStore.ensureUser(user.id, user)
 
     // Prepare minimal draft chat object for sidebar
     const draftChat = {
@@ -39,7 +42,7 @@ export function useChatCreation() {
     chatsStore.addChat(draftChat)
     chatsStore.setActiveChat(draftId)
     chatStore.startPrivateDraft(user.id, draftId)
-    try { messagesStore.setMessagesForChat(draftId, []) } catch (_) {}
+    try { messagesStore.setMessagesForChat(draftId, []) } catch (_) { }
     return draftChat
   }
 
@@ -57,11 +60,10 @@ export function useChatCreation() {
       if (existingChat) {
         // Chat already exists, just activate it
         chatsStore.setActiveChat(existingChat.id)
-        try { chatStore.setCurrentChat(existingChat.id) } catch (_) {}
+        try { chatStore.setCurrentChat(existingChat.id) } catch (_) { }
         // Load latest messages for existing chat
         try {
-          const msgsRes = await messageAPI.getMessages(existingChat.id, { page: 0, size: 50, sort: 'createdAt,desc' })
-          messagesStore.setMessagesForChat(existingChat.id, msgsRes)
+          await messagesStore.loadMessagesForChat(existingChat.id)
         } catch (_) { /* noop */ }
         return existingChat
       }
@@ -91,7 +93,7 @@ export function useChatCreation() {
       // Add minimal first for instant navigation
       chatsStore.addChat(normalized)
       chatsStore.setActiveChat(normalized.id)
-      try { chatStore.setCurrentChat(normalized.id) } catch (_) {}
+      try { chatStore.setCurrentChat(normalized.id) } catch (_) { }
 
       // Fetch full chat details and update store
       try {
@@ -112,16 +114,14 @@ export function useChatCreation() {
 
         // Load messages for this chat
         try {
-          const msgsRes = await messageAPI.getMessages(enriched.id, { page: 0, size: 50, sort: 'createdAt,desc' })
-          messagesStore.setMessagesForChat(enriched.id, msgsRes)
+          await messagesStore.loadMessagesForChat(enriched.id)
         } catch (_) { /* noop */ }
 
         return enriched
       } catch (_) {
         // Fallback to minimal if details fetch fails
         try {
-          const msgsRes = await messageAPI.getMessages(normalized.id, { page: 0, size: 50, sort: 'createdAt,desc' })
-          messagesStore.setMessagesForChat(normalized.id, msgsRes)
+          await messagesStore.loadMessagesForChat(normalized.id)
         } catch (_) { /* noop */ }
         return normalized
       }
