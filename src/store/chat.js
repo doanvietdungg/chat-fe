@@ -14,6 +14,7 @@ const state = reactive({
   pendingRecipientId: null,
   loading: false,
   subscribedChats: new Set(), // Track subscribed chat IDs
+  userEventsSubscriptionId: null, // Track user events subscription
 })
 
 let listenersBound = false
@@ -28,14 +29,21 @@ export function useChatStore() {
       if (!listenersBound) {
         listenersBound = true
         stompService.on('connected', () => {
+          console.log('🔗 STOMP connected successfully')
           state.isConnected = true
           // Re-subscribe to chats after reconnection
           resubscribeToChats()
+          // 🔥 Subscribe to user events for message.first notifications
+          // Add a small delay to ensure connection is fully established
+          setTimeout(() => {
+            subscribeToUserEvents()
+          }, 500)
         })
         stompService.on('disconnected', () => {
           state.isConnected = false
           state.subscribedChats.clear()
           chatSubscriptions.clear()
+          state.userEventsSubscriptionId = null // Reset user events subscription
         })
         stompService.on('error', () => { state.connectionError = 'STOMP error occurred' })
       }
@@ -61,6 +69,7 @@ export function useChatStore() {
     let chatId = state.currentChatId
     const isDraft = typeof chatId === 'string' && chatId.startsWith('draft-')
 
+    const recipientId = state.pendingRecipientId;
     try {
       if (!chatId || isDraft) {
         // Must have a pending recipient to create a private chat
@@ -71,7 +80,7 @@ export function useChatStore() {
         // Get recipient user info for title
         const usersStore = useUsersStore()
         const recipientUser = usersStore.ensureUser(state.pendingRecipientId);
-        
+
         const recipientName = recipientUser?.name || recipientUser?.username || `User ${state.pendingRecipientId}`
 
         // Create chat via API
@@ -104,6 +113,7 @@ export function useChatStore() {
       // Send message via WebSocket (STOMP)
       const payload = {
         chatId: chatId,
+        recipientId: recipientId,
         text: trimmed,
         type: 'TEXT' // MessageType.TEXT from backend enum
       }
@@ -137,11 +147,11 @@ export function useChatStore() {
 
   function setCurrentChat(chatId) {
     state.currentChatId = chatId
-    
+
     // Clear unread count for this chat
     const chatsStore = useChatsStore()
     chatsStore.clearUnread(chatId)
-    
+
     // Subscribe to this chat for real-time messages
     if (chatId && !chatId.startsWith('draft-')) {
       subscribeToChat(chatId)
@@ -165,10 +175,14 @@ export function useChatStore() {
 
   // Subscribe to a chat for real-time messages
   function subscribeToChat(chatId) {
+    console.log("sub chat id", chatId);
     if (!chatId || state.subscribedChats.has(chatId) || !state.isConnected) return
+    console.log("sub chat debuig", chatId);
 
-    const destination = `/topic/chats/${chatId}`
+    const destination = `/topic/chats/${chatId}/messages`
     const subscriptionId = stompService.subscribe(destination, (message) => {
+      console.log("sub chat id success", message);
+
       if (message) {
         const messagesStore = useMessagesStore()
         const authStore = useAuthStore()
@@ -185,7 +199,7 @@ export function useChatStore() {
             timestamp: message.createdAt || new Date().toISOString(),
             type: message.type || 'TEXT'
           })
-          
+
           // Update chat's last message and increment unread
           const chatsStore = useChatsStore()
           chatsStore.updateChatLastMessage(message.chatId, addedMessage)
@@ -232,7 +246,147 @@ export function useChatStore() {
     })
   }
 
-  return {
+  // 🔥 SUBSCRIBE TO USER EVENTS (message.first, etc.)
+  function subscribeToUserEvents() {
+    const authStore = useAuthStore()
+    const currentUser = authStore.user
+
+    console.log('🔍 Debug - Current user from auth store:', currentUser)
+    console.log('🔍 Debug - Connection state:', state.isConnected)
+    console.log('🔍 Debug - Existing subscription ID:', state.userEventsSubscriptionId)
+
+    // Check if already subscribed
+    if (state.userEventsSubscriptionId) {
+      console.log('⚠️ Already subscribed to user events, skipping')
+      return
+    }
+
+    if (!currentUser?.id || !state.isConnected) {
+      console.log('❌ Cannot subscribe to user events: no user ID or not connected')
+      console.log('❌ User ID:', currentUser?.id)
+      console.log('❌ Connected:', state.isConnected)
+      return
+    }
+
+    const userEventsDestination = `/user/topic/events`
+    console.log('📡 Subscribing to user events:', userEventsDestination)
+
+    const subscriptionId = stompService.subscribe(userEventsDestination, (eventData, rawMessage) => {
+      console.log('📨 Received user event (parsed):', eventData)
+      console.log('📨 Raw message object:', rawMessage)
+      console.log('📨 Event data type:', typeof eventData)
+      console.log('📨 Event data keys:', eventData ? Object.keys(eventData) : 'null')
+
+      if (eventData === null || eventData === undefined) {
+        console.log('⚠️ Event data is null/undefined, checking raw message body')
+        console.log('⚠️ Raw message body:', rawMessage?.body)
+      }
+
+      handleUserEvent(eventData)
+    })
+
+    if (subscriptionId) {
+      console.log('✅ Successfully subscribed to user events with subscription ID:', subscriptionId)
+      // Store subscription ID for cleanup if needed
+      state.userEventsSubscriptionId = subscriptionId
+    } else {
+      console.log('❌ Failed to subscribe to user events')
+    }
+  }
+
+  // 🔥 HANDLE USER EVENTS
+  function handleUserEvent(eventData) {
+    if (!eventData || !eventData.type) {
+      console.log('⚠️ Invalid event data:', eventData)
+      return
+    }
+
+    const { type, payload } = eventData
+    console.log(`🎯 Handling event type: ${type}`, payload)
+
+    switch (type) {
+      case 'message.sent':
+        handleMessageFirstEvent(payload)
+        break
+      case 'message.new':
+        handleNewMessageEvent(payload)
+        break
+      case 'chat.created':
+        handleChatCreatedEvent(payload)
+        break
+      default:
+        console.log(`🤷 Unknown event type: ${type}`)
+    }
+  }
+
+  // 🔥 HANDLE MESSAGE.FIRST EVENT - Đẩy chat lên đầu
+  function handleMessageFirstEvent(messagePayload) {
+    console.log('🚀 Handling message.first event:', messagePayload)
+
+    const chatsStore = useChatsStore()
+    const messagesStore = useMessagesStore()
+    const authStore = useAuthStore()
+
+    if (!messagePayload || !messagePayload.authorId) {
+      console.log('⚠️ Invalid message.first payload')
+      return
+    }
+
+    // Tìm hoặc tạo chat với người gửi
+    const senderId = messagePayload.authorId
+    const currentUserId = authStore.user?.id
+
+    // Không xử lý tin nhắn từ chính mình
+    if (senderId === currentUserId) {
+      console.log('🙋 Ignoring message.first from self')
+      return
+    }
+
+    // Tìm chat hiện có với người gửi
+    let existingChat = chatsStore.findChatByUserId(senderId)
+
+    if (existingChat) {
+      // 🔥 Đẩy chat lên đầu danh sách
+      console.log('📌 Moving existing chat to top:', existingChat.title)
+      chatsStore.moveToTop(existingChat.id)
+
+      // Cập nhật last message và tăng unread
+      chatsStore.updateChatLastMessage(existingChat.id, {
+        text: messagePayload.text,
+        timestamp: new Date().toISOString()
+      })
+      chatsStore.incrementUnread(existingChat.id)
+    } else {
+      // 🔥 Tạo chat mới và đặt lên đầu
+      console.log('➕ Creating new chat for user:', senderId)
+
+      // Get sender info (có thể cần call API để lấy thông tin user)
+      const usersStore = useUsersStore()
+      const senderUser = usersStore.ensureUser(senderId)
+      const senderName = senderUser?.name || senderUser?.username || `User ${senderId}`
+
+      const newChat = {
+        id: `chat-${senderId}-${Date.now()}`, // Temporary ID
+        type: 'private',
+        title: senderName,
+        last: messagePayload.text,
+        unread: 1,
+        pinned: false,
+        muted: false,
+        avatar: senderUser?.avatar || null,
+        participants: [currentUserId, senderId],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastMessageTime: new Date().toISOString()
+      }
+
+      // Thêm chat mới lên đầu danh sách
+      chatsStore.addChat(newChat)
+      console.log('✅ New chat created and added to top')
+    }
+  }
+
+  const chatStore = {
     state,
     connect,
     disconnect,
@@ -244,7 +398,17 @@ export function useChatStore() {
     subscribeToChat,
     unsubscribeFromChat,
     subscribeToChats,
+    subscribeToUserEvents,
+    handleUserEvent,
+    handleMessageFirstEvent,
   }
+
+  // Make available globally for testing
+  if (typeof window !== 'undefined') {
+    window.chatStore = chatStore
+  }
+
+  return chatStore
 }
 
 function cryptoRandomId() {

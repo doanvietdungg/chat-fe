@@ -97,6 +97,11 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         onRefreshed(null)
+        // 🔥 Emit event instead of direct logout to let auth store handle it
+        window.dispatchEvent(new CustomEvent('auth:token-expired', {
+          detail: { error: refreshError }
+        }))
+        
         // Cleanup tokens but do not hard redirect here to avoid UX disruption
         localStorage.removeItem('auth_token')
         localStorage.removeItem('refresh_token')
@@ -119,9 +124,12 @@ export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   getMe: () => api.get('/auth/me'),
   updateProfile: (profileData) => api.put('/auth/profile', profileData),
+  refreshToken: (refreshToken) => refreshClient.post('/auth/refresh', { refreshToken }),
   logout: () => {
     localStorage.removeItem('auth_token')
-    window.location.href = '/login'
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('auth_user')
+    // Don't force redirect, let the app handle it
   }
 }
 

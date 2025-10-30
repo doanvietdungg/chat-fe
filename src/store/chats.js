@@ -17,45 +17,45 @@ export function useChatsStore() {
   // Initialize with sample data (fallback when API fails)
   function initSampleData() {
     console.log('Initializing sample chat data...')
-    
+
     // Ensure we create valid chat objects with all required properties
     const sampleChats = [
-      { 
-        id: 'friend-1', 
-        type: 'private', 
-        title: 'Linh Nguyễn', 
-        last: 'Hẹn gặp chiều nay nhé! 😊', 
-        unread: 2, 
-        pinned: false, 
-        muted: false, 
+      {
+        id: 'friend-1',
+        type: 'private',
+        title: 'Linh Nguyễn',
+        last: 'Hẹn gặp chiều nay nhé! 😊',
+        unread: 2,
+        pinned: false,
+        muted: false,
         lastMessageTime: new Date(Date.now() - 300000).toISOString(),
         avatar: null,
         participants: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
-      { 
-        id: 'friend-2', 
-        type: 'private', 
-        title: 'Minh Trần', 
-        last: 'Code review xong chưa?', 
-        unread: 0, 
-        pinned: true, 
-        muted: false, 
+      {
+        id: 'friend-2',
+        type: 'private',
+        title: 'Minh Trần',
+        last: 'Code review xong chưa?',
+        unread: 0,
+        pinned: true,
+        muted: false,
         lastMessageTime: new Date(Date.now() - 1800000).toISOString(),
         avatar: null,
         participants: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
-      { 
-        id: 'group-1', 
-        type: 'group', 
-        title: 'Team Frontend', 
-        last: 'Ai có thể review PR #123?', 
-        unread: 5, 
-        pinned: false, 
-        muted: false, 
+      {
+        id: 'group-1',
+        type: 'group',
+        title: 'Team Frontend',
+        last: 'Ai có thể review PR #123?',
+        unread: 5,
+        pinned: false,
+        muted: false,
         lastMessageTime: new Date(Date.now() - 3600000).toISOString(),
         avatar: null,
         participants: [],
@@ -63,12 +63,12 @@ export function useChatsStore() {
         updatedAt: new Date().toISOString()
       }
     ]
-    
+
     // Validate each chat object before adding
     state.chats = sampleChats.filter(chat => chat && chat.id && chat.title)
-    
+
     console.log('Sample chats created:', state.chats.length)
-    
+
     // Set first chat as active
     if (state.chats.length > 0 && !state.activeChatId) {
       state.activeChatId = state.chats[0].id
@@ -118,7 +118,7 @@ export function useChatsStore() {
 
   function addChat(chat) {
     if (!chat || !chat.id) return
-    
+
     // Normalize chat data to ensure consistent format
     const normalizedChat = {
       id: chat.id,
@@ -138,7 +138,7 @@ export function useChatsStore() {
       isDraft: chat.isDraft || false,
       ...chat // Keep any additional properties
     }
-    
+
     const existingIndex = state.chats.findIndex(c => c && c.id === chat.id)
     if (existingIndex !== -1) {
       // Update existing chat
@@ -152,7 +152,7 @@ export function useChatsStore() {
   // Replace a draft chat with a real chat from API (preserve ordering and active state)
   function replaceChat(oldId, newChat) {
     if (!oldId || !newChat || !newChat.id) return
-    
+
     // Normalize the new chat data
     const normalizedChat = {
       id: newChat.id,
@@ -172,14 +172,14 @@ export function useChatsStore() {
       isDraft: false, // Real chat is never draft
       ...newChat // Keep any additional properties
     }
-    
+
     const index = state.chats.findIndex(c => c && c.id === oldId)
     if (index !== -1) {
       state.chats.splice(index, 1, normalizedChat)
     } else {
       state.chats.unshift(normalizedChat)
     }
-    
+
     // Update active chat ID if the old one was active
     if (state.activeChatId === oldId) {
       state.activeChatId = normalizedChat.id
@@ -188,10 +188,10 @@ export function useChatsStore() {
 
   function findChatByUserId(userId) {
     if (!userId) return null
-    
+
     return state.chats.find(chat => {
       if (!chat || chat.type !== 'private') return false
-      
+
       // Check if this is a private chat with the specified user
       if (Array.isArray(chat.participants)) {
         // For API chats, participants might be user objects or IDs
@@ -200,7 +200,7 @@ export function useChatsStore() {
           return participantId === userId
         })
       }
-      
+
       // Fallback: check if chat title matches user (for simple cases)
       return false
     })
@@ -226,7 +226,7 @@ export function useChatsStore() {
     if (chat) {
       chat.last = message.text || ''
       chat.lastMessageTime = message.timestamp || message.createdAt || new Date().toISOString()
-      
+
       // Move chat to top of list
       const index = state.chats.indexOf(chat)
       if (index > 0) {
@@ -262,7 +262,7 @@ export function useChatsStore() {
   async function loadChats() {
     console.log('Starting loadChats...')
     state.loading = true
-    
+
     // Check if user is authenticated
     const authToken = localStorage.getItem('auth_token')
     if (!authToken) {
@@ -270,30 +270,30 @@ export function useChatsStore() {
       state.loading = false
       return []
     }
-    
+
     try {
       // Clear existing chats before loading from API
       state.chats = []
-      
+
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('API timeout after 10 seconds')), 10000)
       })
-      
+
       // Call API to get chats with timeout
       const apiPromise = chatService.getChats()
       const response = await Promise.race([apiPromise, timeoutPromise])
-      
+
       console.log('Raw API response:', response)
-      
+
       // Handle response structure: { success: true, data: { content: [...] } }
       const responseData = response?.data || response
       const dataNode = responseData?.data || responseData
       const chats = dataNode?.content || []
-      
+
       console.log('Extracted chats:', chats)
       console.log('Loaded chats from API:', chats.length)
-      
+
       if (Array.isArray(chats) && chats.length > 0) {
         // Map API chats to local format
         const mappedChats = chats.map(chat => ({
@@ -314,15 +314,15 @@ export function useChatsStore() {
           description: chat.description,
           lastMessageTime: chat.updatedAt || chat.createdAt
         }))
-        
+
         console.log('Mapped chats:', mappedChats)
-        
+
         // Sort by most recent first
         mappedChats.sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime))
-        
+
         // Replace mock data with API data
         state.chats = mappedChats
-        
+
         // Set first chat as active if no active chat
         if (!state.activeChatId && mappedChats.length > 0) {
           state.activeChatId = mappedChats[0].id
@@ -338,14 +338,14 @@ export function useChatsStore() {
     } catch (error) {
       console.error('Failed to load chats from API:', error.message)
       console.error('Error details:', error)
-      
+
       // Don't auto-create sample data on error
       console.log('API failed, keeping empty state')
     } finally {
       console.log('Setting loading to false')
       state.loading = false
     }
-    
+
     // Return existing chat IDs for subscription (mock or API)
     const chatIds = state.chats.map(chat => chat.id).filter(Boolean)
     console.log('Returning chat IDs:', chatIds)
@@ -358,21 +358,21 @@ export function useChatsStore() {
       // Ensure state.chats is always an array and filter out invalid entries
       const chatsArray = Array.isArray(state.chats) ? state.chats : []
       const validChats = chatsArray.filter(c => c && typeof c === 'object' && c.id && c.title)
-      
+
       const items = q
         ? validChats.filter(c => c.title && c.title.toLowerCase().includes(q))
         : validChats.slice()
-      
+
       // pinned first then by unread desc, with safe property access
       const sorted = items.sort((a, b) => {
         const aPinned = a && a.pinned ? 1 : 0
         const bPinned = b && b.pinned ? 1 : 0
         const aUnread = a && a.unread ? a.unread : 0
         const bUnread = b && b.unread ? b.unread : 0
-        
+
         return (bPinned - aPinned) || (bUnread - aUnread)
       })
-      
+
       // Ensure we always return an array
       return Array.isArray(sorted) ? sorted : []
     } catch (error) {
@@ -386,16 +386,31 @@ export function useChatsStore() {
   // Don't initialize sample data automatically
   // Only use sample data as fallback when API fails
 
-  return { 
-    state, 
-    filtered, 
-    activeChat, 
-    setActive, 
-    createGroup, 
-    createChannel, 
-    togglePin, 
-    toggleMute, 
-    setNotificationLevel, 
+  // 🔥 MOVE CHAT TO TOP OF LIST
+  function moveToTop(chatId) {
+    if (!chatId) return
+
+    const chatIndex = state.chats.findIndex(c => c && c.id === chatId)
+    if (chatIndex > 0) { // Only move if not already at top
+      const chat = state.chats[chatIndex]
+      // Remove from current position
+      state.chats.splice(chatIndex, 1)
+      // Add to top
+      state.chats.unshift(chat)
+      console.log(`📌 Moved chat "${chat.title}" to top`)
+    }
+  }
+
+  return {
+    state,
+    filtered,
+    activeChat,
+    setActive,
+    createGroup,
+    createChannel,
+    togglePin,
+    toggleMute,
+    setNotificationLevel,
     setSearch,
     addChat,
     replaceChat,
@@ -407,7 +422,8 @@ export function useChatsStore() {
     incrementUnread,
     clearUnread,
     stopLoading,
-    initSampleData
+    initSampleData,
+    moveToTop
   }
 }
 

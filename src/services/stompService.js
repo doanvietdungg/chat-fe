@@ -22,6 +22,10 @@ class StompService {
       heartbeatOutgoing: 10000,
       debug: (msg) => {
         if (import.meta?.env?.VITE_DEBUG === 'true') console.log('[STOMP]', msg)
+        // Always log incoming messages for debugging
+        if (msg.includes('MESSAGE')) {
+          console.log('🔍 [STOMP DEBUG] Incoming message:', msg)
+        }
       },
       onConnect: () => this._emit('connected'),
       onStompError: (frame) => this._emit('error', frame),
@@ -33,31 +37,55 @@ class StompService {
 
   disconnect() {
     if (!this.client) return
-    try { this.client.deactivate() } catch (_) {}
+    try { this.client.deactivate() } catch (_) { }
     this.client = null
     this.subscriptions.clear()
   }
 
   subscribe(destination, cb) {
-    if (!this.client?.connected) return null
+    if (!this.client?.connected) {
+      console.log('❌ STOMP client not connected, cannot subscribe to:', destination)
+      return null
+    }
+
+    console.log('📡 STOMP subscribing to:', destination)
+
     const sub = this.client.subscribe(destination, (message) => {
-      const body = message.body ? JSON.parse(message.body) : null
+      console.log('📨 STOMP received raw message on', destination)
+      console.log('📨 Message headers:', message.headers)
+      console.log('📨 Message body (raw):', message.body)
+      console.log('📨 Message body type:', typeof message.body)
+      console.log('📨 Message body length:', message.body?.length)
+      
+      let body = null
+      try {
+        body = message.body ? JSON.parse(message.body) : null
+        console.log('📨 Parsed body:', body)
+      } catch (error) {
+        console.error('❌ Failed to parse message body:', error)
+        console.log('❌ Raw body that failed to parse:', message.body)
+      }
+      
       cb(body, message)
     })
+
     this.subscriptions.set(sub.id, sub)
+    console.log('✅ STOMP subscription created with ID:', sub.id)
     return sub.id
   }
 
   unsubscribe(id) {
     const sub = this.subscriptions.get(id)
-    if (sub) { try { sub.unsubscribe() } catch (_) {} }
+    if (sub) { try { sub.unsubscribe() } catch (_) { } }
     this.subscriptions.delete(id)
   }
 
   send(destination, body) {
     if (!this.client?.connected) return
     const payload = typeof body === 'string' ? body : JSON.stringify(body)
-    this.client.publish({ destination, body: payload })
+    const token = localStorage.getItem('auth_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    this.client.publish({ destination, body: payload, headers })
   }
 
   on(event, cb) {

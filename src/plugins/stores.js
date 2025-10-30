@@ -53,7 +53,20 @@ export async function initializeChatSystem() {
         // Wait a bit for connection to establish
         setTimeout(() => {
           if (chatStore.state.isConnected) {
+            console.log('📡 Subscribing to', chatIds.length, 'chats')
             chatStore.subscribeToChats(chatIds)
+            
+            // 🔥 Subscribe to user events for message.first notifications
+            console.log('📡 Subscribing to user events for message.first notifications')
+            chatStore.subscribeToUserEvents()
+          }
+        }, 1000)
+      } else {
+        // Even if no chats, still subscribe to user events
+        setTimeout(() => {
+          if (chatStore.state.isConnected) {
+            console.log('📡 Subscribing to user events (no existing chats)')
+            chatStore.subscribeToUserEvents()
           }
         }, 1000)
       }

@@ -156,6 +156,13 @@ export const useAuthStore = defineStore('auth', () => {
       const savedToken = localStorage.getItem('auth_token')
 
       if (savedUser && savedToken) {
+        // 🔥 Check if token is expired before setting authenticated
+        if (isTokenExpired(savedToken)) {
+          console.log('🔐 Token expired, attempting refresh...')
+          attemptTokenRefresh()
+          return
+        }
+        
         user.value = JSON.parse(savedUser)
         isAuthenticated.value = true
       }
@@ -165,13 +172,78 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 🔥 Check if JWT token is expired
+  const isTokenExpired = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const currentTime = Date.now() / 1000
+      return payload.exp < currentTime
+    } catch (error) {
+      console.error('Error parsing token:', error)
+      return true // Treat invalid tokens as expired
+    }
+  }
+
+  // 🔥 Attempt to refresh token silently
+  const attemptTokenRefresh = async () => {
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (!refreshToken) {
+      console.log('🔐 No refresh token available')
+      logout()
+      return
+    }
+
+    try {
+      isLoading.value = true
+      const response = await authAPI.refreshToken(refreshToken)
+      const newToken = response?.data?.accessToken || response?.data?.token
+      const newRefresh = response?.data?.refreshToken
+
+      if (newToken) {
+        localStorage.setItem('auth_token', newToken)
+        if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
+        
+        // Reload user data
+        const savedUser = localStorage.getItem('auth_user')
+        if (savedUser) {
+          user.value = JSON.parse(savedUser)
+          isAuthenticated.value = true
+          console.log('🔐 Token refreshed successfully')
+        }
+      } else {
+        throw new Error('No token in refresh response')
+      }
+    } catch (error) {
+      console.error('🔐 Token refresh failed:', error)
+      logout()
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   const clearError = () => {
     error.value = null
+  }
+
+  // 🔥 Handle token expiry events
+  const handleTokenExpiry = (event) => {
+    console.log('🔐 Token expired event received:', event.detail)
+    error.value = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+    isAuthenticated.value = false
+    user.value = null
   }
 
   // Initialize
   const init = () => {
     loadUserFromStorage()
+    
+    // 🔥 Listen for token expiry events
+    window.addEventListener('auth:token-expired', handleTokenExpiry)
+  }
+
+  // 🔥 Cleanup event listeners
+  const cleanup = () => {
+    window.removeEventListener('auth:token-expired', handleTokenExpiry)
   }
 
   return {
@@ -192,6 +264,9 @@ export const useAuthStore = defineStore('auth', () => {
     updateProfile,
     changePassword,
     clearError,
-    init
+    init,
+    cleanup,
+    attemptTokenRefresh,
+    isTokenExpired
   }
 })

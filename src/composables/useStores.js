@@ -48,12 +48,12 @@ export function useStores() {
 
   function showContextMenu(event, messageId) {
     event.preventDefault()
-    
+
     const message = messagesStore.getMessageById(messageId)
     if (!message) return
 
     const isOwnMessage = message.authorId === messagesStore.getCurrentUser().id
-    
+
     const options = [
       { label: 'Reply', action: 'reply', icon: 'ReplyOutlined' },
       { label: 'Forward', action: 'forward', icon: 'ShareAltOutlined' },

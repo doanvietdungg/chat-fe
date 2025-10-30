@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, watch } from 'vue'
+import { onMounted, onUnmounted, computed, watch } from 'vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMain from './components/ChatMain.vue'
 import AuthContainer from './components/AuthContainer.vue'
@@ -16,6 +16,11 @@ onMounted(() => {
   authStore.init()
   // Then initialize other stores
   initializeStores()
+})
+
+onUnmounted(() => {
+  // Cleanup auth store event listeners
+  authStore.cleanup()
 })
 
 // Watch for authentication changes and initialize chat system
@@ -46,6 +51,17 @@ const handleAuthSuccess = () => {
       <ChatMain />
       <DebugPanel />
     </a-layout>
+
+    <!-- 🔥 Token expiry notification -->
+    <a-notification
+      v-if="authStore.error && authStore.error.includes('hết hạn')"
+      :message="'Phiên đăng nhập hết hạn'"
+      :description="authStore.error"
+      type="warning"
+      :duration="5"
+      placement="topRight"
+      @close="authStore.clearError"
+    />
   </div>
 </template>
 

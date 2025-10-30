@@ -5,6 +5,7 @@ import { useUsersStore } from '../store/users.js'
 import { useChatStore } from '../store/chat.js'
 import { chatAPI } from '../services/api.js'
 import { useMessagesStore } from '../store/messages.js'
+import { useStores } from './useStores.js'
 
 export function useChatCreation() {
   const chatCreationStore = useChatCreationStore()
@@ -40,7 +41,8 @@ export function useChatCreation() {
     }
 
     chatsStore.addChat(draftChat)
-    chatsStore.setActiveChat(draftId)
+    const { setActiveChat } = useStores()
+    setActiveChat(draftId)
     chatStore.startPrivateDraft(user.id, draftId)
     try { messagesStore.setMessagesForChat(draftId, []) } catch (_) { }
     return draftChat
@@ -59,8 +61,8 @@ export function useChatCreation() {
 
       if (existingChat) {
         // Chat already exists, just activate it
-        chatsStore.setActiveChat(existingChat.id)
-        try { chatStore.setCurrentChat(existingChat.id) } catch (_) { }
+        const { setActiveChat } = useStores()
+        setActiveChat(existingChat.id)
         // Load latest messages for existing chat
         try {
           await messagesStore.loadMessagesForChat(existingChat.id)
@@ -92,8 +94,8 @@ export function useChatCreation() {
 
       // Add minimal first for instant navigation
       chatsStore.addChat(normalized)
-      chatsStore.setActiveChat(normalized.id)
-      try { chatStore.setCurrentChat(normalized.id) } catch (_) { }
+      const { setActiveChat } = useStores()
+      setActiveChat(normalized.id)
 
       // Fetch full chat details and update store
       try {
@@ -151,7 +153,8 @@ export function useChatCreation() {
   }
 
   const navigateToChat = (chatId) => {
-    chatsStore.setActiveChat(chatId)
+    const { setActiveChat } = useStores()
+    setActiveChat(chatId)
   }
 
   const clearError = () => {

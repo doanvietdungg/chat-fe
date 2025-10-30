@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useChatsStore } from './chats'
 import { useUsersStore } from './users'
+import { useStores } from '../composables/useStores.js'
 
 export const useChatCreationStore = defineStore('chatCreation', () => {
   // State
@@ -37,7 +38,8 @@ export const useChatCreationStore = defineStore('chatCreation', () => {
       
       if (existingChat) {
         // Chat already exists, just open it
-        chatsStore.setActiveChat(existingChat.id)
+        const { setActiveChat } = useStores()
+        setActiveChat(existingChat.id)
         return existingChat
       }
 
@@ -53,7 +55,8 @@ export const useChatCreationStore = defineStore('chatCreation', () => {
       chatsStore.addChat(newChat)
       
       // Set as active chat
-      chatsStore.setActiveChat(newChat.id)
+      const { setActiveChat } = useStores()
+      setActiveChat(newChat.id)
       
       return newChat
     } catch (error) {
@@ -144,7 +147,8 @@ export const useChatCreationStore = defineStore('chatCreation', () => {
       chatsStore.addChat(newGroupChat)
       
       // Set as active chat
-      chatsStore.setActiveChat(newGroupChat.id)
+      const { setActiveChat } = useStores()
+      setActiveChat(newGroupChat.id)
 
       // Save to localStorage
       try {
@@ -168,8 +172,8 @@ export const useChatCreationStore = defineStore('chatCreation', () => {
   const navigateToChat = (chatId) => {
     // This would typically use Vue Router
     // For now, we'll just set the active chat
-    const chatsStore = useChatsStore()
-    chatsStore.setActiveChat(chatId)
+    const { setActiveChat } = useStores()
+    setActiveChat(chatId)
   }
 
   const clearError = () => {

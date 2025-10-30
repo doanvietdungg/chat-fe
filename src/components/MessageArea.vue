@@ -27,11 +27,10 @@ const hoveredMessageId = ref(null)
 const showQuickReactions = ref(null)
 
 const processedMessages = computed(() => {
-  console.log('Processing messages:', props.messages)
-  
   const messages = props.messages.map(message => {
-    const isOwn = message.authorId === authStore.user?.id
-    console.log(`Message ${message.id}: authorId=${message.authorId}, currentUserId=${authStore.user?.id}, isOwn=${isOwn}`)
+    // Use real logic to determine if message is from current user
+    const isOwn = message.authorId === authStore.user?.id || 
+                  String(message.authorId) === String(authStore.user?.id)
     
     return {
       ...message,
@@ -47,22 +46,16 @@ const processedMessages = computed(() => {
     const prevMessage = messages[index - 1]
     const nextMessage = messages[index + 1]
     
-    // Show timestamp if:
-    // 1. First message
-    // 2. Different author from previous
-    // 3. More than 15 minutes from previous message
-    const showTime = !prevMessage || 
-                    prevMessage.author !== message.author ||
-                    (message.timestamp - prevMessage.timestamp) > 15 * 60 * 1000
-
     // Show author if:
     // 1. First message
     // 2. Different author from previous
-    // 3. More than 15 minutes from previous message
-    // 4. Not own message
-    const showAuthor = !message.isOwn && (!prevMessage || 
-                      prevMessage.author !== message.author ||
-                      (message.timestamp - prevMessage.timestamp) > 15 * 60 * 1000)
+    // 3. More than 10 minutes from previous message
+    const shouldShowHeader = !prevMessage || 
+                            prevMessage.author !== message.author ||
+                            (message.timestamp - prevMessage.timestamp) > 10 * 60 * 1000
+    
+    const showTime = shouldShowHeader
+    const showAuthor = !message.isOwn && shouldShowHeader
 
     // Check if this is the last message in a group (for spacing)
     const isLastInGroup = !nextMessage ||
@@ -138,7 +131,7 @@ watch(() => props.messages.length, () => {
           'message-wrapper', 
           { 
             'own-message': message.isOwn,
-            'grouped-message': !message.showAuthor && !message.isOwn,
+            'grouped-message': !message.showTime,
             'last-in-group': message.isLastInGroup,
             'hovered': hoveredMessageId === message.id
           }
@@ -156,18 +149,24 @@ watch(() => props.messages.length, () => {
             {{ message.authorInitial }}
           </a-avatar>
           <span class="message-author">{{ message.author }}</span>
-          <span class="message-time" v-if="message.showTime">{{ message.formattedTime }}</span>
+          <span class="message-time">{{ message.formattedTime }}</span>
+        </div>
+        
+        <!-- Time header for own messages -->
+        <div class="message-header" v-if="message.isOwn && message.showTime">
+          <span class="message-time">{{ message.formattedTime }}</span>
         </div>
 
         <div 
-          :class="['message-bubble', { 'own-bubble': message.isOwn, 'grouped-bubble': !message.showAuthor && !message.isOwn }]"
-          style="position: relative"
+          :class="['message-bubble', { 'own-bubble': message.isOwn, 'grouped-bubble': !message.showTime }]"
+          :style="{
+            position: 'relative',
+            backgroundColor: message.isOwn ? '#1890ff' : '#f0f0f0',
+            color: message.isOwn ? 'white' : 'black',
+            borderBottomRightRadius: message.isOwn ? '6px' : '18px',
+            borderBottomLeftRadius: message.isOwn ? '18px' : '6px'
+          }"
         >
-          <!-- Own message time (only when showTime is true) -->
-          <div class="own-message-time" v-if="message.isOwn && message.showTime">
-            {{ message.formattedTime }}
-          </div>
-
           <!-- Message Content -->
           <div class="message-content">
             <!-- Reply Preview (if this message is a reply) -->
@@ -276,8 +275,23 @@ watch(() => props.messages.length, () => {
 .message-area {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-md);
-  background: var(--bg-color);
+  padding: 16px;
+  background: var(--bg-color, #ffffff);
+  
+  /* CSS Variables for consistent theming */
+  --message-bg: #f0f0f0;
+  --own-message-bg: #1890ff;
+  --text-primary: #262626;
+  --text-secondary: #8c8c8c;
+  --text-white: #ffffff;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --border-radius: 6px;
+  --border-radius-lg: 18px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .messages-container {
@@ -291,9 +305,9 @@ watch(() => props.messages.length, () => {
 .message-wrapper {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   margin-bottom: var(--spacing-xs);
   width: 100%;
+  align-items: flex-start;
 }
 
 .message-wrapper.own-message {
@@ -311,30 +325,47 @@ watch(() => props.messages.length, () => {
 .message-bubble {
   max-width: 70%;
   min-width: 100px;
-  background: var(--message-bg);
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-md);
-  box-shadow: var(--shadow-sm);
+  background: var(--message-bg, #f0f0f0);
+  border-radius: 18px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   position: relative;
   word-wrap: break-word;
+  margin: 2px 0;
 }
 
 .message-bubble.own-bubble {
-  background: var(--own-message-bg);
-  color: var(--text-white);
+  background: var(--own-message-bg, #1890ff);
+  color: white;
+  border-bottom-right-radius: 6px;
+}
+
+.message-wrapper:not(.own-message) .message-bubble {
+  border-bottom-left-radius: 6px;
 }
 
 .message-bubble.grouped-bubble {
-  margin-left: 40px; /* Align with previous messages (avatar width + gap) */
-  border-top-left-radius: var(--border-radius);
+  border-top-left-radius: 6px;
+}
+
+.message-wrapper.own-message .message-bubble.grouped-bubble {
+  border-top-right-radius: 6px;
+  border-top-left-radius: 18px;
 }
 
 .message-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-xs);
+  gap: 8px;
+  margin-bottom: 4px;
   padding-left: 2px;
+  width: 100%;
+}
+
+.message-wrapper.own-message .message-header {
+  justify-content: flex-end;
+  padding-right: 2px;
+  padding-left: 0;
 }
 
 .message-author {
@@ -346,18 +377,22 @@ watch(() => props.messages.length, () => {
 .message-time {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+.message-header:not(.own-message .message-header) .message-time {
   margin-left: auto;
 }
 
-.own-message-time {
-  position: absolute;
-  top: -18px;
-  right: 0;
-  font-size: 11px;
+.message-time-bubble {
+  font-size: 10px;
   color: var(--text-secondary);
-  background: var(--bg-color);
-  padding: 2px 4px;
-  border-radius: 4px;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+.message-time-bubble.own-time {
+  color: rgba(255, 255, 255, 0.8);
+  text-align: right;
 }
 
 .message-content {
@@ -474,7 +509,6 @@ watch(() => props.messages.length, () => {
 }
 
 .message-wrapper.own-message.grouped-message .message-bubble {
-  margin-left: 0;
   border-top-right-radius: var(--border-radius);
 }
 
