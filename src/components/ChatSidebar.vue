@@ -10,7 +10,7 @@
         <a-button type="text" @click="debugChats" size="small" title="Debug chats">
           🐛
         </a-button>
-        <a-button type="text" @click="showUserProfile = true" class="profile-btn">
+        <a-button type="text" @click="showTelegramSidebar = true" class="profile-btn">
           <a-avatar :size="32" :style="{ backgroundColor: getAvatarColor(currentUser?.id) }">
             {{ userInitials }}
           </a-avatar>
@@ -21,6 +21,15 @@
 
     <!-- User Profile Modal -->
     <UserProfile v-model:open="showUserProfile" @logout="handleLogout" />
+    
+    <!-- Context Menu -->
+    <ChatContextMenu 
+      :visible="contextMenuVisible"
+      :position="contextMenuPosition"
+      :chatData="selectedChat"
+      @close="contextMenuVisible = false"
+      @action="handleContextMenuAction"
+    />
 
     <!-- Search -->
     <div class="search-container">
@@ -54,7 +63,9 @@
 
       <!-- Chat List -->
       <div v-else class="chat-list">
-        <div v-for="chat in chatList" :key="chat?.id || Math.random()" @click="openChat(chat?.id)"
+        <div v-for="chat in chatList" :key="chat?.id || Math.random()" 
+          @click="openChat(chat?.id)"
+          @contextmenu.prevent="showContextMenu($event, chat)"
           :class="['chat-item', { 'active': chat?.id === activeChat }]">
           <div class="chat-avatar">
             <a-badge :count="chat?.unread || 0" :offset="[5, 5]">
@@ -75,13 +86,9 @@
             </div>
           </div>
 
-          <div class="chat-actions">
-            <a-button type="text" size="small" :class="{ 'pinned': chat?.pinned }"
-              @click.stop="togglePin($event, chat?.id)">
-              <template #icon>
-                <PushpinOutlined />
-              </template>
-            </a-button>
+          <!-- Pin indicator -->
+          <div v-if="chat?.pinned" class="pin-indicator">
+            <PushpinOutlined />
           </div>
         </div>
       </div>
@@ -91,6 +98,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatsStore } from '../store/chats'
 import { useAuthStore } from '../store/auth'
 import {
@@ -99,11 +107,16 @@ import {
 } from '@ant-design/icons-vue'
 import NewChatDropdown from './NewChatDropdown.vue'
 import UserProfile from './UserProfile.vue'
+import ChatContextMenu from './ChatContextMenu.vue'
 
-// Stores
+// Stores and router
+const router = useRouter()
 const chatsStore = useChatsStore()
 const authStore = useAuthStore()
 const showUserProfile = ref(false)
+const contextMenuVisible = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const selectedChat = ref(null)
 
 // No local state needed - using store directly
 
@@ -142,29 +155,12 @@ const chatList = computed(() => {
 const activeChat = computed(() => chatsStore.state.activeChatId)
 
 // Methods
-async function openChat(id) {
+function openChat(id) {
   if (!id) return
-  console.log('Opening chat:', id)
+  console.log('Opening chat via router:', id)
 
-  // Set active chat in chats store
-  chatsStore.setActive(id)
-
-  // Set current chat in chat store (for WebSocket subscriptions)
-  const { useChatStore } = await import('../store/chat')
-  const chatStore = useChatStore()
-  chatStore.setCurrentChat(id)
-
-  // Load messages for this chat
-  const { useMessagesStore } = await import('../store/messages')
-  const messagesStore = useMessagesStore()
-
-  try {
-    console.log('Loading messages for chat:', id)
-    await messagesStore.loadMessagesForChat(id)
-    console.log('Messages loaded successfully')
-  } catch (error) {
-    console.error('Failed to load messages:', error)
-  }
+  // Navigate to chat route - this will trigger the chat loading in ChatView
+  router.push(`/chat/${id}`)
 }
 
 function togglePin(e, id) {
@@ -239,19 +235,45 @@ function stopLoading() {
   chatsStore.stopLoading()
 }
 
+function showContextMenu(event, chat) {
+  event.preventDefault()
+  
+  selectedChat.value = chat
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  
+  // Adjust position if menu would go off-screen
+  const menuWidth = 220
+  const menuHeight = 300
+  const windowWidth = window.innerWidth
+  const windowHeight = window.innerHeight
+  
+  if (contextMenuPosition.value.x + menuWidth > windowWidth) {
+    contextMenuPosition.value.x = windowWidth - menuWidth - 10
+  }
+  
+  if (contextMenuPosition.value.y + menuHeight > windowHeight) {
+    contextMenuPosition.value.y = windowHeight - menuHeight - 10
+  }
+  
+  contextMenuVisible.value = true
+}
+
+function handleContextMenuAction(action) {
+  console.log('Context menu action:', action, 'for chat:', selectedChat.value?.title)
+  // Actions are handled in the context menu component
+}
+
 function loadSampleData() {
   console.log('Loading sample data...')
   chatsStore.initSampleData()
 }
 
 // Initialize on mount
-onMounted(async () => {
+onMounted(() => {
   console.log('ChatSidebar mounted with', chatsStore.state.chats.length, 'chats')
-
-  // If there's an active chat, load its messages
-  if (chatsStore.state.activeChatId) {
-    await openChat(chatsStore.state.activeChatId)
-  }
 })
 </script>
 
@@ -366,18 +388,11 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.chat-actions {
+.pin-indicator {
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.chat-item:hover .chat-actions {
-  opacity: 1;
-}
-
-.chat-actions .pinned {
   color: #1890ff;
+  font-size: 12px;
+  margin-left: 8px;
 }
 
 .loading-state {
@@ -442,8 +457,8 @@ onMounted(async () => {
     font-size: 18px;
   }
 
-  .chat-actions {
-    display: none;
+  .pin-indicator {
+    font-size: 10px;
   }
 }
 </style>

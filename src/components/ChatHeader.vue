@@ -4,12 +4,16 @@ import { computed, ref } from 'vue'
 import { useChatsStore } from '../store/chats'
 import { useChatStore } from '../store/chat'
 import { 
-  BellOutlined, 
   UserOutlined, 
   TeamOutlined, 
   SoundOutlined,
-  SearchOutlined
+  SearchOutlined,
+  PhoneOutlined,
+  VideoCameraOutlined,
+  MoreOutlined
 } from '@ant-design/icons-vue'
+import TelegramSidebarLight from './TelegramSidebarLight.vue'
+import UserProfile from './UserProfile.vue'
 
 const chats = useChatsStore()
 const chat = useChatStore()
@@ -17,10 +21,10 @@ const chat = useChatStore()
 const activeChat = chats.activeChat
 
 const isConnected = computed(() => chat.state.isConnected)
-const searchQuery = ref('')
-const showNotificationModal = ref(false)
-const notificationLevel = ref('all')
-const muted = ref(false)
+const showTelegramSidebar = ref(false)
+const showUserProfile = ref(false)
+
+
 
 function getChatIcon(type) {
   switch (type) {
@@ -34,38 +38,27 @@ function getChatAvatar(chat) {
   return chat?.title?.[0]?.toUpperCase() || '?'
 }
 
-function showNotificationSettings() {
-  const active = activeChat.value
-  if (active) {
-    notificationLevel.value = active.notificationLevel || 'all'
-    muted.value = active.muted || false
-    showNotificationModal.value = true
-  }
+function toggleSearch() {
+  console.log('Toggle search')
+  // Implement search functionality
 }
 
-function saveNotificationSettings() {
-  const active = activeChat.value
-  if (active) {
-    chats.setNotificationLevel(active.id, notificationLevel.value)
-    if (muted.value !== active.muted) {
-      chats.toggleMute(active.id)
-    }
-    showNotificationModal.value = false
-  }
+function startCall() {
+  console.log('Start voice call')
+  // Implement voice call
 }
 
-function onSearch(value) {
-  // Emit search event to parent or handle search logic
-  console.log('Searching in chat:', value)
+function startVideoCall() {
+  console.log('Start video call')
+  // Implement video call
 }
 
-// Watch for active chat changes to update notification settings
-function updateNotificationSettings() {
-  const active = activeChat.value
-  if (active) {
-    notificationLevel.value = active.notificationLevel || 'all'
-    muted.value = active.muted || false
-  }
+function showMoreOptions() {
+  showTelegramSidebar.value = true
+}
+
+function handleLogout() {
+  // Handled by UserProfile component
 }
 </script>
 
@@ -79,7 +72,7 @@ function updateNotificationSettings() {
         {{ getChatAvatar(activeChat) }}
       </a-avatar>
       
-      <div class="chat-info">
+      <div class="chat-info" @click="showUserProfile = true" style="cursor: pointer;">
         <div class="chat-title">
           <component 
             :is="getChatIcon(activeChat?.type)" 
@@ -98,53 +91,63 @@ function updateNotificationSettings() {
     </div>
 
     <div class="header-right">
-      <a-input-search 
-        v-model:value="searchQuery"
-        placeholder="Tìm trong đoạn chat"
-        style="width: 280px"
-        @search="onSearch"
-        allow-clear
-      />
-      
+      <!-- Search Button -->
       <a-button 
         type="text" 
-        @click="showNotificationSettings"
-        :title="'Cài đặt thông báo'"
+        size="large"
+        @click="toggleSearch"
+        :title="'Tìm kiếm'"
         :disabled="!activeChat"
+        class="telegram-btn"
       >
-        <template #icon><BellOutlined /></template>
+        <template #icon><SearchOutlined /></template>
+      </a-button>
+      
+      <!-- Call Button -->
+      <a-button 
+        type="text" 
+        size="large"
+        @click="startCall"
+        :title="'Gọi điện'"
+        :disabled="!activeChat"
+        class="telegram-btn"
+      >
+        <template #icon><PhoneOutlined /></template>
+      </a-button>
+      
+      <!-- Video Call Button -->
+      <a-button 
+        type="text" 
+        size="large"
+        @click="startVideoCall"
+        :title="'Gọi video'"
+        :disabled="!activeChat"
+        class="telegram-btn"
+      >
+        <template #icon><VideoCameraOutlined /></template>
+      </a-button>
+      
+      <!-- More Options -->
+      <a-button 
+        type="text" 
+        size="large"
+        @click="showMoreOptions"
+        :title="'Tùy chọn khác'"
+        :disabled="!activeChat"
+        class="telegram-btn"
+      >
+        <template #icon><MoreOutlined /></template>
       </a-button>
     </div>
 
-    <!-- Notification Settings Modal -->
-    <a-modal
-      v-model:open="showNotificationModal"
-      title="Cài đặt thông báo"
-      @ok="saveNotificationSettings"
-      ok-text="Lưu"
-      cancel-text="Hủy"
-      width="420px"
-    >
-      <div class="notification-settings">
-        <div class="setting-group">
-          <h4>Mức độ thông báo</h4>
-          <a-radio-group v-model:value="notificationLevel">
-            <a-radio value="all">Tất cả tin nhắn</a-radio>
-            <a-radio value="mentions">Chỉ khi được nhắc đến</a-radio>
-            <a-radio value="none">Tắt thông báo</a-radio>
-          </a-radio-group>
-        </div>
-        
-        <div class="setting-group">
-          <a-switch 
-            v-model:checked="muted" 
-            checked-children="Đã tắt tiếng"
-            un-checked-children="Bật tiếng"
-          />
-          <span class="switch-label">Tắt tiếng cuộc trò chuyện</span>
-        </div>
-      </div>
-    </a-modal>
+    <!-- User Profile Modal -->
+    <UserProfile v-model:open="showUserProfile" @logout="handleLogout" />
+    
+    <!-- Telegram Sidebar -->
+    <TelegramSidebarLight 
+      v-model:visible="showTelegramSidebar" 
+      :userId="activeChat?.id"
+    />
   </div>
 </template>
 
@@ -202,34 +205,31 @@ function updateNotificationSettings() {
 .header-right {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: 8px;
 }
 
-.notification-settings {
-  padding: var(--spacing-md) 0;
+.telegram-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #8c8c8c !important;
+  transition: all 0.2s ease !important;
 }
 
-.setting-group {
-  margin-bottom: var(--spacing-lg);
+.telegram-btn:hover {
+  background-color: #f5f5f5 !important;
+  color: #1890ff !important;
 }
 
-.setting-group h4 {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
+.telegram-btn:disabled {
+  color: #d9d9d9 !important;
+  background-color: transparent !important;
 }
 
-.setting-group .ant-radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
 
-.switch-label {
-  margin-left: var(--spacing-sm);
-  color: var(--text-primary);
-}
 
 /* Responsive design */
 @media (max-width: 768px) {

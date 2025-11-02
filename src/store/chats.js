@@ -1,5 +1,6 @@
 import { reactive, computed } from 'vue'
 import { chatService } from '../services/chatService'
+import { chatCrudService } from '../services/chatCrudService'
 
 const state = reactive({
   query: '',
@@ -69,11 +70,8 @@ export function useChatsStore() {
 
     console.log('Sample chats created:', state.chats.length)
 
-    // Set first chat as active
-    if (state.chats.length > 0 && !state.activeChatId) {
-      state.activeChatId = state.chats[0].id
-      console.log('Set active chat:', state.activeChatId)
-    }
+    // Don't auto-set active chat - let router handle it
+    console.log('Sample chats created, no auto-active chat')
   }
   function setActive(id) {
     if (!id) return
@@ -323,10 +321,7 @@ export function useChatsStore() {
         // Replace mock data with API data
         state.chats = mappedChats
 
-        // Set first chat as active if no active chat
-        if (!state.activeChatId && mappedChats.length > 0) {
-          state.activeChatId = mappedChats[0].id
-        }
+        // Don't auto-set active chat - let router handle it
 
         console.log('Successfully loaded', mappedChats.length, 'chats from API')
         // Return chat IDs for WebSocket subscription
@@ -423,7 +418,275 @@ export function useChatsStore() {
     clearUnread,
     stopLoading,
     initSampleData,
-    moveToTop
+    moveToTop,
+    
+    // CRUD Operations
+    createChat,
+    updateChat,
+    deleteChat,
+    getChatDetails,
+    getChatParticipants,
+    addParticipants,
+    removeParticipant,
+    updateParticipantRole,
+    leaveChat,
+    archiveChat,
+    unarchiveChat,
+    muteChat,
+    unmuteChat,
+    pinChat,
+    unpinChat
+  }
+
+  // ==================== CRUD OPERATIONS ====================
+
+  /**
+   * Create new chat
+   */
+  async function createChat(chatData) {
+    try {
+      const chat = await chatCrudService.createChat(chatData)
+      addChat(chat)
+      return chat
+    } catch (error) {
+      console.error('Failed to create chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update existing chat
+   */
+  async function updateChat(chatId, updates) {
+    try {
+      const updatedChat = await chatCrudService.updateChat(chatId, updates)
+      
+      // Update local state
+      const index = state.chats.findIndex(c => c && c.id === chatId)
+      if (index !== -1) {
+        state.chats[index] = { ...state.chats[index], ...updatedChat }
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to update chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete chat
+   */
+  async function deleteChat(chatId) {
+    try {
+      await chatCrudService.deleteChat(chatId)
+      removeChat(chatId)
+      return true
+    } catch (error) {
+      console.error('Failed to delete chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get chat details
+   */
+  async function getChatDetails(chatId) {
+    try {
+      return await chatCrudService.getChatDetails(chatId)
+    } catch (error) {
+      console.error('Failed to get chat details:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get chat participants
+   */
+  async function getChatParticipants(chatId) {
+    try {
+      return await chatCrudService.getChatParticipants(chatId)
+    } catch (error) {
+      console.error('Failed to get chat participants:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Add participants to chat
+   */
+  async function addParticipants(chatId, participantIds) {
+    try {
+      return await chatCrudService.addParticipants(chatId, participantIds)
+    } catch (error) {
+      console.error('Failed to add participants:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Remove participant from chat
+   */
+  async function removeParticipant(chatId, userId) {
+    try {
+      return await chatCrudService.removeParticipant(chatId, userId)
+    } catch (error) {
+      console.error('Failed to remove participant:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update participant role
+   */
+  async function updateParticipantRole(chatId, userId, role) {
+    try {
+      return await chatCrudService.updateParticipantRole(chatId, userId, role)
+    } catch (error) {
+      console.error('Failed to update participant role:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Leave chat
+   */
+  async function leaveChat(chatId) {
+    try {
+      const authStore = await import('./auth.js').then(m => m.useAuthStore())
+      const currentUserId = authStore.user?.id
+      
+      if (!currentUserId) {
+        throw new Error('User not authenticated')
+      }
+      
+      await chatCrudService.leaveChat(chatId, currentUserId)
+      removeChat(chatId)
+      return true
+    } catch (error) {
+      console.error('Failed to leave chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Archive chat
+   */
+  async function archiveChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.archiveChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.archived = true
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to archive chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Unarchive chat
+   */
+  async function unarchiveChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.unarchiveChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.archived = false
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to unarchive chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Mute chat
+   */
+  async function muteChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.muteChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.muted = true
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to mute chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Unmute chat
+   */
+  async function unmuteChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.unmuteChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.muted = false
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to unmute chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Pin chat
+   */
+  async function pinChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.pinChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.pinned = true
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to pin chat:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Unpin chat
+   */
+  async function unpinChat(chatId) {
+    try {
+      const updatedChat = await chatCrudService.unpinChat(chatId)
+      
+      // Update local state
+      const chat = state.chats.find(c => c && c.id === chatId)
+      if (chat) {
+        chat.pinned = false
+      }
+      
+      return updatedChat
+    } catch (error) {
+      console.error('Failed to unpin chat:', error)
+      throw error
+    }
   }
 }
 

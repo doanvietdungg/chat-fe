@@ -10,6 +10,8 @@ import {
 import MessageReactions from './MessageReactions.vue'
 import QuickReactions from './QuickReactions.vue'
 import ReactionPicker from './ReactionPicker.vue'
+import MessageContextMenu from './MessageContextMenu.vue'
+import TypingIndicator from './TypingIndicator.vue'
 import { useStores } from '../composables/useStores'
 import { useAuthStore } from '../store/auth'
 
@@ -25,6 +27,11 @@ const authStore = useAuthStore()
 const messageContainer = ref(null)
 const hoveredMessageId = ref(null)
 const showQuickReactions = ref(null)
+
+// Context menu state
+const contextMenuVisible = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const contextMenuMessage = ref(null)
 
 const processedMessages = computed(() => {
   const messages = props.messages.map(message => {
@@ -115,10 +122,61 @@ function scrollToBottom() {
   })
 }
 
+// Context menu functions
+function showMessageContextMenu(event, message) {
+  event.preventDefault()
+  
+  contextMenuMessage.value = message
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  contextMenuVisible.value = true
+}
+
+function closeContextMenu() {
+  contextMenuVisible.value = false
+  contextMenuMessage.value = null
+}
+
+function handleContextMenuAction(action, data) {
+  console.log('Context menu action:', action, data)
+  
+  switch (action) {
+    case 'reply':
+      // Emit reply event to parent
+      emit('reply', data)
+      break
+    case 'edit':
+      // Emit edit event to parent
+      emit('edit', data)
+      break
+    case 'forward':
+      // Emit forward event to parent
+      emit('forward', data)
+      break
+    case 'delete':
+      // Message already deleted in store
+      break
+    case 'select':
+      // Emit select event to parent
+      emit('select', data)
+      break
+    case 'show-more-reactions':
+      // Show reaction picker
+      uiStore.openModal('reactions')
+      uiStore.setContextMenuMessageId(data?.id)
+      break
+  }
+}
+
 // Auto scroll to bottom when new messages arrive
 watch(() => props.messages.length, () => {
   scrollToBottom()
 }, { immediate: true })
+
+// Define emits
+const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
 </script>
 
 <template>
@@ -138,7 +196,7 @@ watch(() => props.messages.length, () => {
         ]"
         @mouseenter="hoveredMessageId = message.id"
         @mouseleave="hoveredMessageId = null"
-        @contextmenu="showContextMenu($event, message.id)"
+        @contextmenu="showMessageContextMenu($event, message)"
       >
         <!-- Message Header (only for first message in group) -->
         <div class="message-header" v-if="message.showAuthor">
@@ -242,6 +300,9 @@ watch(() => props.messages.length, () => {
         </div>
       </div>
       
+      <!-- Typing Indicator -->
+      <TypingIndicator />
+      
       <!-- Loading state -->
       <div v-if="loading" class="loading-messages">
         <div v-for="i in 3" :key="i" class="message-skeleton">
@@ -261,6 +322,15 @@ watch(() => props.messages.length, () => {
         </div>
       </div>
     </div>
+
+    <!-- Message Context Menu -->
+    <MessageContextMenu
+      :visible="contextMenuVisible"
+      :position="contextMenuPosition"
+      :message-data="contextMenuMessage"
+      @close="closeContextMenu"
+      @action="handleContextMenuAction"
+    />
 
     <!-- Reaction Picker Modal -->
     <ReactionPicker

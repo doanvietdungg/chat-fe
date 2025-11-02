@@ -6,13 +6,26 @@ import {
   PaperClipOutlined, 
   SendOutlined
 } from '@ant-design/icons-vue'
+import { useTypingIndicator } from '../composables/useTypingIndicator'
+import { useChatStore } from '../store/chat'
 
 const emit = defineEmits(['send', 'attach'])
+
+const chatStore = useChatStore()
+const currentChatId = computed(() => chatStore.state.currentChatId)
+
+// Use typing indicator composable
+const {
+  isTyping,
+  handleKeyDown,
+  handleKeyUp,
+  handleTypingDebounced,
+  stopTyping
+} = useTypingIndicator(currentChatId)
 
 const messageText = ref('')
 const fileInput = ref(null)
 const showEmojiPicker = ref(false)
-const isTyping = ref(false)
 
 // Common emojis for fallback picker
 const commonEmojis = [
@@ -36,13 +49,19 @@ function handleSend() {
     emit('send', text)
     messageText.value = ''
     showEmojiPicker.value = false
+    // Stop typing when message is sent
+    stopTyping()
   }
 }
 
 function handleKeyPress(e) {
+  // Handle typing indicators
+  handleKeyDown(e)
+  
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     handleSend()
+    handleKeyUp(e)
   }
 }
 
@@ -80,8 +99,8 @@ function addEmoji(emoji) {
 }
 
 function handleInput() {
-  // Handle typing indicators here if needed
-  isTyping.value = messageText.value.length > 0
+  // Handle typing indicators with debounce
+  handleTypingDebounced()
 }
 
 // Close emoji picker when clicking outside

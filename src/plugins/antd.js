@@ -23,7 +23,12 @@ import {
   Col,
   Divider,
   Tabs,
-  Select
+  Select,
+  message,
+  Menu,
+  Statistic,
+  Slider,
+  TimePicker
 } from 'ant-design-vue'
 
 // Import Ant Design styles
@@ -56,4 +61,11 @@ export default function setupAntDesign(app) {
   app.use(Divider)
   app.use(Tabs)
   app.use(Select)
+  app.use(Menu)
+  app.use(Statistic)
+  app.use(Slider)
+  app.use(TimePicker)
+  
+  // Configure global message
+  app.config.globalProperties.$message = message
 }

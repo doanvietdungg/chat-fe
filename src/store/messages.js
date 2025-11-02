@@ -1,160 +1,10 @@
 import { reactive, computed } from 'vue'
 import { useAuthStore } from './auth'
 
-// Enhanced message state with Telegram-like features
+// Enhanced message state - no mock data, all from API
 const state = reactive({
   loading: false,
-  messages: [
-    // Chat với Linh Nguyễn
-    {
-      id: 'msg-1',
-      chatId: 'friend-1',
-      text: 'Chào bạn! Hôm nay thế nào?',
-      author: 'Linh Nguyễn',
-      authorId: 'user-linh',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      at: new Date(Date.now() - 3600000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-    {
-      id: 'msg-2',
-      chatId: 'friend-1',
-      text: 'Tôi ổn! Cảm ơn bạn đã hỏi 😊',
-      author: 'You',
-      authorId: 'current_user',
-      timestamp: new Date(Date.now() - 3000000).toISOString(),
-      at: new Date(Date.now() - 3000000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-    {
-      id: 'msg-3',
-      chatId: 'friend-1',
-      text: 'Bạn có rảnh không? Mình muốn hỏi về dự án.',
-      author: 'Linh Nguyễn',
-      authorId: 'user-linh',
-      timestamp: new Date(Date.now() - 1800000).toISOString(),
-      at: new Date(Date.now() - 1800000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-    {
-      id: 'msg-4',
-      chatId: 'friend-1',
-      text: 'Có chứ! Bạn cần hỗ trợ gì?',
-      author: 'You',
-      authorId: 'current_user',
-      timestamp: new Date(Date.now() - 1200000).toISOString(),
-      at: new Date(Date.now() - 1200000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-    {
-      id: 'msg-5',
-      chatId: 'friend-1',
-      text: 'Hẹn gặp chiều nay nhé! 😊',
-      author: 'Linh Nguyễn',
-      authorId: 'user-linh',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      at: new Date(Date.now() - 300000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-
-    // Chat với Minh Trần
-    {
-      id: 'msg-6',
-      chatId: 'friend-2',
-      text: 'Code review xong chưa?',
-      author: 'Minh Trần',
-      authorId: 'user-minh',
-      timestamp: new Date(Date.now() - 1800000).toISOString(),
-      at: new Date(Date.now() - 1800000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-
-    // Chat nhóm Team Frontend
-    {
-      id: 'msg-7',
-      chatId: 'group-1',
-      text: 'Ai có thể review PR #123?',
-      author: 'Minh Trần',
-      authorId: 'user-minh',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      at: new Date(Date.now() - 3600000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    },
-    {
-      id: 'msg-8',
-      chatId: 'group-1',
-      text: 'Mình có thể review được!',
-      author: 'You',
-      authorId: 'current_user',
-      timestamp: new Date(Date.now() - 3500000).toISOString(),
-      at: new Date(Date.now() - 3500000).toISOString(),
-      edited: false,
-      editedAt: null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: null,
-      voice: null,
-      type: 'text'
-    }
-  ],
+  messages: [], // Start with empty array, will be populated from API only
 
   typingUsers: [], // Users currently typing
   editingMessageId: null,
@@ -171,35 +21,10 @@ export function useMessagesStore() {
     return authStore.user || { id: 'current_user', name: 'You' }
   }
 
-  // Initialize mock data with correct user ID
+  // No mock data initialization needed - all data from API
   function initializeMockData() {
-    const currentUserId = getCurrentUser().id
-
-    // Update mock messages to use correct current user ID
-    state.messages.forEach(message => {
-      if (message.authorId === 'user-me') {
-        message.authorId = currentUserId
-        message.author = getCurrentUser().name
-      }
-
-      // Update reactions
-      if (message.reactions) {
-        message.reactions.forEach(reaction => {
-          reaction.users = reaction.users.map(userId =>
-            userId === 'user-me' ? currentUserId : userId
-          )
-        })
-      }
-
-      // Update readBy
-      if (message.readBy) {
-        message.readBy.forEach(read => {
-          if (read.userId === 'user-me') {
-            read.userId = currentUserId
-          }
-        })
-      }
-    })
+    // No-op - all messages come from API
+    console.log('Messages store initialized - no mock data')
   }
   // Message CRUD operations
   function setMessagesForChat(chatId, apiData) {
@@ -422,6 +247,17 @@ export function useMessagesStore() {
         }
         return true
       }
+    }
+    return false
+  }
+
+  // Pin/Unpin message
+  function pinMessage(messageId) {
+    const message = state.messages.find(m => m.id === messageId)
+    if (message) {
+      message.pinned = !message.pinned
+      message.pinnedAt = message.pinned ? new Date().toISOString() : null
+      return true
     }
     return false
   }
@@ -720,6 +556,9 @@ export function useMessagesStore() {
     // Reactions
     addReaction,
     removeReaction,
+
+    // Pin messages
+    pinMessage,
 
     // Replies
     setReplyTo,

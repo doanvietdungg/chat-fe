@@ -325,16 +325,14 @@ export const useUsersStore = defineStore('users', () => {
 
   // Initialize store with mock data
   const initializeMockUsers = () => {
-    mockUsers.forEach(user => {
-      users.value.set(user.id, user)
-    })
+    // No mock users - all users loaded from API
+    console.log('Users store initialized - no mock data')
   }
 
   // Initialize store
   const init = () => {
     loadCurrentUser()
-    // Load mock users for development
-    initializeMockUsers()
+    // No mock users - all users loaded from API when needed
   }
 
   return {

@@ -1,21 +1,24 @@
 <script setup>
 import { onMounted, onUnmounted, computed, watch } from 'vue'
-import ChatSidebar from './components/ChatSidebar.vue'
-import ChatMain from './components/ChatMain.vue'
-import AuthContainer from './components/AuthContainer.vue'
-import DebugPanel from './components/DebugPanel.vue'
+import { useRouter } from 'vue-router'
 import { initializeStores, initializeChatSystem } from './plugins/stores'
 import { useAuthStore } from './store/auth'
+import { useNotificationsStore } from './store/notifications'
+import NotificationToast from './components/NotificationToast.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
+const notificationStore = useNotificationsStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 onMounted(() => {
-  // Initialize auth store first
-  authStore.init()
-  // Then initialize other stores
+  // Auth store already initialized in main.js
+  // Initialize other stores
   initializeStores()
+  
+  // Initialize notification store
+  notificationStore.init()
 })
 
 onUnmounted(() => {
@@ -29,39 +32,19 @@ watch(isAuthenticated, async (authenticated) => {
     // Initialize chat system after successful authentication
     await initializeChatSystem()
   }
+  // Don't redirect here - let router guards handle it
 }, { immediate: true })
-
-const handleAuthSuccess = () => {
-  // Auth success is handled by the store
-  // Component will automatically re-render when isAuthenticated changes
-}
 </script>
 
 <template>
   <div class="app-container">
-    <!-- Show auth forms if not authenticated -->
-    <AuthContainer 
-      v-if="!isAuthenticated"
-      @auth-success="handleAuthSuccess"
-    />
-    
-    <!-- Show chat app if authenticated -->
-    <a-layout v-else class="chat-app">
-      <ChatSidebar />
-      <ChatMain />
-      <DebugPanel />
-    </a-layout>
+    <!-- Router view will handle auth routing -->
+    <router-view />
 
-    <!-- 🔥 Token expiry notification -->
-    <a-notification
-      v-if="authStore.error && authStore.error.includes('hết hạn')"
-      :message="'Phiên đăng nhập hết hạn'"
-      :description="authStore.error"
-      type="warning"
-      :duration="5"
-      placement="topRight"
-      @close="authStore.clearError"
-    />
+    <!-- Notification Toast System -->
+    <NotificationToast />
+
+    <!-- Token expiry notification handled by NotificationToast -->
   </div>
 </template>
 

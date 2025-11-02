@@ -5,12 +5,13 @@ import { useAuthStore } from './auth'
 import { useUsersStore } from './users'
 import { stompService } from '../services/stompService'
 import { chatService } from '../services/chatService'
+import { ca } from 'date-fns/locale'
 
 const state = reactive({
   username: `User-${Math.floor(Math.random() * 1000)}`,
   isConnected: false,
   connectionError: '',
-  currentChatId: 'friend-1', // Default active chat
+  currentChatId: null, // No default chat - will be set from URL
   pendingRecipientId: null,
   loading: false,
   subscribedChats: new Set(), // Track subscribed chat IDs
@@ -179,8 +180,9 @@ export function useChatStore() {
     if (!chatId || state.subscribedChats.has(chatId) || !state.isConnected) return
     console.log("sub chat debuig", chatId);
 
-    const destination = `/topic/chats/${chatId}/messages`
-    const subscriptionId = stompService.subscribe(destination, (message) => {
+    // Subscribe to messages
+    const messagesDestination = `/topic/chats/${chatId}/messages`
+    const messagesSubscriptionId = stompService.subscribe(messagesDestination, (message) => {
       console.log("sub chat id success", message);
 
       if (message) {
@@ -208,9 +210,31 @@ export function useChatStore() {
       }
     })
 
-    if (subscriptionId) {
+    // Subscribe to typing indicators
+    const typingDestination = `/topic/chats/${chatId}/typing`
+    const typingSubscriptionId = stompService.subscribe(typingDestination, (typingData) => {
+      console.log("🔤 Received typing event:", typingData);
+
+      if (typingData) {
+        const messagesStore = useMessagesStore()
+        const authStore = useAuthStore()
+        const currentUserId = authStore.user?.id
+
+        // Don't show typing indicator for current user
+        if (typingData.userId !== currentUserId) {
+          messagesStore.setTyping(typingData.userId, typingData.isTyping)
+        }
+      }
+    })
+
+    if (messagesSubscriptionId) {
       state.subscribedChats.add(chatId)
-      chatSubscriptions.set(chatId, subscriptionId)
+      chatSubscriptions.set(chatId, messagesSubscriptionId)
+      
+      // Store typing subscription separately
+      if (typingSubscriptionId) {
+        chatSubscriptions.set(`${chatId}-typing`, typingSubscriptionId)
+      }
     }
   }
 
@@ -218,12 +242,21 @@ export function useChatStore() {
   function unsubscribeFromChat(chatId) {
     if (!chatId || !state.subscribedChats.has(chatId)) return
 
-    const subscriptionId = chatSubscriptions.get(chatId)
-    if (subscriptionId) {
-      stompService.unsubscribe(subscriptionId)
-      state.subscribedChats.delete(chatId)
+    // Unsubscribe from messages
+    const messagesSubscriptionId = chatSubscriptions.get(chatId)
+    if (messagesSubscriptionId) {
+      stompService.unsubscribe(messagesSubscriptionId)
       chatSubscriptions.delete(chatId)
     }
+
+    // Unsubscribe from typing
+    const typingSubscriptionId = chatSubscriptions.get(`${chatId}-typing`)
+    if (typingSubscriptionId) {
+      stompService.unsubscribe(typingSubscriptionId)
+      chatSubscriptions.delete(`${chatId}-typing`)
+    }
+
+    state.subscribedChats.delete(chatId)
   }
 
   // Re-subscribe to all chats after reconnection
@@ -319,12 +352,93 @@ export function useChatStore() {
     }
   }
 
+  // Handle new message event
+  function handleNewMessageEvent(messagePayload) {
+    console.log('📨 Handling message.new event:', messagePayload)
+    
+    const authStore = useAuthStore()
+    const currentUserId = authStore.user?.id
+
+    // Không xử lý tin nhắn từ chính mình
+    if (messagePayload.authorId === currentUserId) {
+      return
+    }
+
+    // Tạo notification cho tin nhắn mới
+    import('../store/notifications.js').then(({ useNotificationsStore }) => {
+      const notificationStore = useNotificationsStore()
+      const usersStore = useUsersStore()
+      const senderUser = usersStore.ensureUser(messagePayload.authorId)
+      const senderName = senderUser?.name || senderUser?.username || `User ${messagePayload.authorId}`
+
+      notificationStore.showMessageNotification({
+        senderName: senderName,
+        text: messagePayload.text || 'Tin nhắn mới',
+        senderAvatar: senderUser?.avatar,
+        chatId: messagePayload.chatId,
+        senderId: messagePayload.authorId
+      })
+    }).catch(console.error)
+  }
+
+  // Handle chat created event
+  function handleChatCreatedEvent(chatPayload) {
+    console.log('💬 Handling chat.created event:', chatPayload)
+    
+    // Tạo notification cho chat mới
+    import('../store/notifications.js').then(({ useNotificationsStore }) => {
+      const notificationStore = useNotificationsStore()
+      
+      notificationStore.showSystemNotification(
+        'Chat mới được tạo',
+        `Bạn đã được thêm vào cuộc trò chuyện: ${chatPayload.title || 'Không có tiêu đề'}`
+      )
+    }).catch(console.error)
+
+    // Thêm chat mới vào danh sách
+    const chatsStore = useChatsStore()
+    chatsStore.addChat(chatPayload)
+  }
+
+  // Send typing start event
+  function startTyping(chat) {
+    if (!chat || !state.isConnected) return
+
+    console.log(chat);
+    
+    const chatId = chat.value
+    console.log(chatId);
+    console.log(chat);
+    
+    const payload = {
+      chatId: chatId,
+      typing: true
+    }
+
+    stompService.send('/app/typing', payload)
+    console.log('🔤 Sent typing start for chat:', chatId)
+  }
+
+  // Send typing stop event
+  function stopTyping(chat) {
+    if (!chat || !state.isConnected) return
+
+    const chatId = chat.value
+
+    const payload = {
+      chatId: chatId,
+      typing: false
+    }
+
+    stompService.send('/app/typing', payload)
+    console.log('🔤 Sent typing stop for chat:', chatId)
+  }
+
   // 🔥 HANDLE MESSAGE.FIRST EVENT - Đẩy chat lên đầu
   function handleMessageFirstEvent(messagePayload) {
     console.log('🚀 Handling message.first event:', messagePayload)
 
     const chatsStore = useChatsStore()
-    const messagesStore = useMessagesStore()
     const authStore = useAuthStore()
 
     if (!messagePayload || !messagePayload.authorId) {
@@ -341,6 +455,22 @@ export function useChatStore() {
       console.log('🙋 Ignoring message.first from self')
       return
     }
+
+    // 🔔 Tạo notification cho tin nhắn mới
+    import('../store/notifications.js').then(({ useNotificationsStore }) => {
+      const notificationStore = useNotificationsStore()
+      const usersStore = useUsersStore()
+      const senderUser = usersStore.ensureUser(senderId)
+      const senderName = senderUser?.name || senderUser?.username || `User ${senderId}`
+
+      notificationStore.showMessageNotification({
+        senderName: senderName,
+        text: messagePayload.text || 'Tin nhắn mới',
+        senderAvatar: senderUser?.avatar,
+        chatId: messagePayload.chatId,
+        senderId: senderId
+      })
+    }).catch(console.error)
 
     // Tìm chat hiện có với người gửi
     let existingChat = chatsStore.findChatByUserId(senderId)
@@ -401,6 +531,8 @@ export function useChatStore() {
     subscribeToUserEvents,
     handleUserEvent,
     handleMessageFirstEvent,
+    startTyping,
+    stopTyping,
   }
 
   // Make available globally for testing

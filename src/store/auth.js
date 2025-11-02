@@ -150,21 +150,29 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const loadUserFromStorage = () => {
+  const loadUserFromStorage = async () => {
     try {
       const savedUser = localStorage.getItem('auth_user')
       const savedToken = localStorage.getItem('auth_token')
 
+      console.log('Loading user from storage...')
+      console.log('Saved user:', savedUser)
+      console.log('Saved token exists:', !!savedToken)
+
       if (savedUser && savedToken) {
-        // 🔥 Check if token is expired before setting authenticated
+        // Check if token is expired before setting authenticated
         if (isTokenExpired(savedToken)) {
           console.log('🔐 Token expired, attempting refresh...')
-          attemptTokenRefresh()
+          await attemptTokenRefresh()
           return
         }
         
         user.value = JSON.parse(savedUser)
         isAuthenticated.value = true
+        console.log('✅ User authenticated from storage:', user.value)
+      } else {
+        console.log('❌ No saved user or token found')
+        isAuthenticated.value = false
       }
     } catch (error) {
       console.error('Failed to load user from storage:', error)
@@ -234,11 +242,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Initialize
-  const init = () => {
-    loadUserFromStorage()
+  const init = async () => {
+    console.log('Initializing auth store...')
+    await loadUserFromStorage()
     
-    // 🔥 Listen for token expiry events
+    // Listen for token expiry events
     window.addEventListener('auth:token-expired', handleTokenExpiry)
+    console.log('Auth store initialized')
   }
 
   // 🔥 Cleanup event listeners
