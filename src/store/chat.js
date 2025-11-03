@@ -230,7 +230,7 @@ export function useChatStore() {
     if (messagesSubscriptionId) {
       state.subscribedChats.add(chatId)
       chatSubscriptions.set(chatId, messagesSubscriptionId)
-      
+
       // Store typing subscription separately
       if (typingSubscriptionId) {
         chatSubscriptions.set(`${chatId}-typing`, typingSubscriptionId)
@@ -355,7 +355,7 @@ export function useChatStore() {
   // Handle new message event
   function handleNewMessageEvent(messagePayload) {
     console.log('📨 Handling message.new event:', messagePayload)
-    
+
     const authStore = useAuthStore()
     const currentUserId = authStore.user?.id
 
@@ -384,11 +384,11 @@ export function useChatStore() {
   // Handle chat created event
   function handleChatCreatedEvent(chatPayload) {
     console.log('💬 Handling chat.created event:', chatPayload)
-    
+
     // Tạo notification cho chat mới
     import('../store/notifications.js').then(({ useNotificationsStore }) => {
       const notificationStore = useNotificationsStore()
-      
+
       notificationStore.showSystemNotification(
         'Chat mới được tạo',
         `Bạn đã được thêm vào cuộc trò chuyện: ${chatPayload.title || 'Không có tiêu đề'}`
@@ -405,11 +405,11 @@ export function useChatStore() {
     if (!chat || !state.isConnected) return
 
     console.log(chat);
-    
+
     const chatId = chat.value
     console.log(chatId);
     console.log(chat);
-    
+
     const payload = {
       chatId: chatId,
       typing: true

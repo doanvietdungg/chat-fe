@@ -1,13 +1,12 @@
 <template>
   <div class="dropdown-container">
     <a-button 
-      type="primary" 
+      type="text" 
       class="new-chat-dropdown-btn"
       @click="toggleDropdown"
+      title="Tạo cuộc trò chuyện mới"
     >
       <PlusOutlined />
-      New
-      <DownOutlined />
     </a-button>
     
     <div v-if="dropdownVisible" class="dropdown-menu" @click.stop>
@@ -116,51 +115,53 @@ onUnmounted(() => {
 .new-chat-dropdown-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  border-radius: 8px;
-  padding: 6px 12px;
-  height: 36px;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
+  justify-content: center;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  padding: 0 !important;
+  color: #8c8c8c !important;
+  transition: all 0.2s ease !important;
+  font-size: 16px;
 }
 
 .new-chat-dropdown-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+  background-color: #f5f5f5 !important;
+  color: #1890ff !important;
+  transform: scale(1.05);
 }
 
 .new-chat-dropdown-btn:active {
-  transform: translateY(0);
+  transform: scale(0.95);
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   right: 0;
-  min-width: 240px;
+  min-width: 220px;
   background: white;
-  border-radius: 12px;
-  padding: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e8e8e8;
   z-index: 1000;
-  animation: slideDown 0.2s ease-out;
+  animation: slideDown 0.15s ease-out;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 4px;
-  transition: all 0.2s ease-in-out;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  transition: all 0.15s ease;
   cursor: pointer;
 }
 
 .menu-item:hover {
-  background-color: #f5f5f5;
-  transform: translateX(2px);
+  background-color: #f0f8ff;
+  transform: translateX(1px);
 }
 
 .menu-item:last-child {
@@ -206,6 +207,37 @@ onUnmounted(() => {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .new-chat-dropdown-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 14px;
+  }
+
+  .dropdown-menu {
+    min-width: 200px;
+    right: -8px;
+  }
+
+  .menu-item {
+    padding: 8px 10px;
+  }
+
+  .menu-icon {
+    font-size: 16px;
+    margin-right: 10px;
+  }
+
+  .menu-title {
+    font-size: 13px;
+  }
+
+  .menu-desc {
+    font-size: 11px;
   }
 }
 </style>

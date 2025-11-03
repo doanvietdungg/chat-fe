@@ -19,6 +19,7 @@ const props = defineProps({
   messages: { type: Array, required: true },
   username: { type: String, required: true },
   loading: { type: Boolean, default: false },
+  chatId: { type: String, required: true }
 })
 
 const { messagesStore, uiStore, showContextMenu } = useStores()
@@ -328,6 +329,7 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
       :visible="contextMenuVisible"
       :position="contextMenuPosition"
       :message-data="contextMenuMessage"
+      :chat-id="props.chatId"
       @close="closeContextMenu"
       @action="handleContextMenuAction"
     />

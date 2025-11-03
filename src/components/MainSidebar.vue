@@ -2,9 +2,9 @@
   <div>
     <!-- Hamburger Menu Button -->
     <div 
+      v-if="!isVisible && !isPinnedViewOpen"
       class="hamburger-menu"
       @click="toggleSidebar"
-      :class="{ active: isVisible }"
     >
       <MenuOutlined />
     </div>
@@ -125,6 +125,10 @@ import { useRouter } from 'vue-router'
 
 const props = defineProps({
   visible: {
+    type: Boolean,
+    default: false
+  },
+  isPinnedViewOpen: {
     type: Boolean,
     default: false
   }
@@ -311,30 +315,27 @@ watch(nightMode, (newValue) => {
 <style scoped>
 .hamburger-menu {
   position: fixed;
-  top: 20px;
+  top: 10px;
   left: 20px;
-  z-index: 1001;
+  z-index: 1100;
   width: 40px;
   height: 40px;
-  background: #1890ff;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
-  font-size: 18px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #8c8c8c;
+  font-size: 24px;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  backdrop-filter: blur(10px);
 }
 
 .hamburger-menu:hover {
-  background: #40a9ff;
-  transform: scale(1.05);
-}
-
-.hamburger-menu.active {
-  background: #ff4d4f;
+  color: #1890ff;
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 1);
 }
 
 .sidebar-overlay {
@@ -359,8 +360,9 @@ watch(nightMode, (newValue) => {
   left: 0;
   width: 280px;
   height: 100vh;
-  background: #2c3e50;
-  color: #ecf0f1;
+  background: #ffffff;
+  color: #262626;
+  border-right: 1px solid #e8e8e8;
   z-index: 1000;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
@@ -375,7 +377,7 @@ watch(nightMode, (newValue) => {
 
 .user-profile-section {
   padding: 20px 0;
-  border-bottom: 1px solid #34495e;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 .current-user {
@@ -408,17 +410,17 @@ watch(nightMode, (newValue) => {
 
 .user-status {
   font-size: 13px;
-  color: #7fb3d3;
+  color: #8c8c8c;
   cursor: pointer;
 }
 
 .user-status:hover {
-  color: #5dade2;
+  color: #1890ff;
 }
 
 .collapse-icon {
   font-size: 12px;
-  color: #7f8c8d;
+  color: #bfbfbf;
 }
 
 .account-list {
@@ -454,18 +456,18 @@ watch(nightMode, (newValue) => {
 }
 
 .add-account {
-  color: #7fb3d3;
+  color: #8c8c8c;
 }
 
 .add-account:hover {
-  color: #5dade2;
+  color: #1890ff;
 }
 
 .add-icon {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(127, 179, 211, 0.2);
+  background: #f5f5f5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -495,7 +497,7 @@ watch(nightMode, (newValue) => {
   width: 20px;
   margin-right: 16px;
   font-size: 18px;
-  color: #7f8c8d;
+  color: #8c8c8c;
 }
 
 .menu-text {
@@ -513,7 +515,7 @@ watch(nightMode, (newValue) => {
 
 .sidebar-footer {
   padding: 20px;
-  border-top: 1px solid #34495e;
+  border-top: 1px solid #e8e8e8;
   margin-top: auto;
 }
 
@@ -523,13 +525,13 @@ watch(nightMode, (newValue) => {
 
 .app-name {
   font-size: 13px;
-  color: #7f8c8d;
+  color: #8c8c8c;
   margin-bottom: 4px;
 }
 
 .app-version {
   font-size: 11px;
-  color: #95a5a6;
+  color: #bfbfbf;
 }
 
 /* Custom scrollbar */
@@ -542,12 +544,12 @@ watch(nightMode, (newValue) => {
 }
 
 .main-sidebar::-webkit-scrollbar-thumb {
-  background: #34495e;
+  background: #d9d9d9;
   border-radius: 3px;
 }
 
 .main-sidebar::-webkit-scrollbar-thumb:hover {
-  background: #4a5f7a;
+  background: #bfbfbf;
 }
 
 /* Responsive */
@@ -560,20 +562,19 @@ watch(nightMode, (newValue) => {
   .hamburger-menu {
     top: 15px;
     left: 15px;
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
   }
 }
 
 /* Dark theme support */
 :global(.dark-theme) .hamburger-menu {
-  background: #1f1f1f;
   color: #ffffff;
 }
 
 :global(.dark-theme) .hamburger-menu:hover {
-  background: #333333;
+  color: #1890ff;
 }
 
 :global(.dark-theme) .main-sidebar {
@@ -608,7 +609,7 @@ watch(nightMode, (newValue) => {
   top: 0;
   height: 100%;
   width: 3px;
-  background: #3498db;
+  background: #1890ff;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
 }

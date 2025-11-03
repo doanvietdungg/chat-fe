@@ -1,11 +1,22 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref, inject, watch } from 'vue'
 import { useStores } from '../composables/useStores'
 import ChatHeader from './ChatHeader.vue'
 import MessageArea from './MessageArea.vue'
 import MessageInput from './MessageInput.vue'
+import PinnedMessage from './PinnedMessage.vue'
+import PinnedMessagesView from './PinnedMessagesView.vue'
 
 const { chatStore, messagesStore, sendMessage } = useStores()
+const showPinnedView = ref(false)
+
+// Inject state from parent
+const isPinnedViewOpen = inject('isPinnedViewOpen', ref(false))
+
+// Watch showPinnedView and update parent state
+watch(showPinnedView, (newValue) => {
+  isPinnedViewOpen.value = newValue
+})
 
 const currentMessages = computed(() => {
   const messages = messagesStore.getMessagesForChat(chatStore.state.currentChatId)
@@ -39,26 +50,62 @@ function handleAttach(file) {
   }
   reader.readAsDataURL(file)
 }
+
+function scrollToPinnedMessage(messageId) {
+  // Emit event to MessageArea to scroll to message
+  console.log('Scroll to pinned message:', messageId)
+  // TODO: Implement scroll to message functionality
+}
+
+function unpinMessage(messageId) {
+  messagesStore.pinMessage(messageId) // Toggle pin
+}
+
+function unpinAllMessages() {
+  const pinnedMessages = currentMessages.value.filter(m => m.pinned)
+  pinnedMessages.forEach(m => messagesStore.pinMessage(m.id))
+}
 </script>
 
 <template>
   <a-layout-content class="chat-main">
     <ChatHeader />
     
-    <div class="message-container">
+    <!-- Pinned Message Banner -->
+    <PinnedMessage 
+      v-if="chatStore.state.currentChatId && !showPinnedView"
+      :chatId="chatStore.state.currentChatId"
+      @scroll-to-message="scrollToPinnedMessage"
+      @unpin="unpinMessage"
+      @show-list="showPinnedView = true"
+    />
+    
+    <div v-if="!showPinnedView" class="message-container">
       <MessageArea 
         :messages="currentMessages" 
         :username="chatStore.state.username"
         :loading="messagesStore.state?.loading || false"
+        :chat-id="chatStore.state.currentChatId"
       />
     </div>
     
-    <div class="input-container">
+    <div v-if="!showPinnedView" class="input-container">
       <MessageInput 
         @send="handleSend" 
         @attach="handleAttach" 
       />
     </div>
+    
+    <!-- Pinned Messages View -->
+    <PinnedMessagesView
+      v-if="chatStore.state.currentChatId"
+      :visible="showPinnedView"
+      :chatId="chatStore.state.currentChatId"
+      @update:visible="showPinnedView = $event"
+      @scroll-to-message="scrollToPinnedMessage"
+      @unpin="unpinMessage"
+      @unpin-all="unpinAllMessages"
+    />
     
     <!-- Connection Error Alert -->
     <a-alert 

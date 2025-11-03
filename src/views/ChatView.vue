@@ -3,6 +3,7 @@
     <!-- Main Sidebar -->
     <MainSidebar 
       v-model:visible="mainSidebarVisible"
+      :isPinnedViewOpen="isPinnedViewOpen"
       @menu-click="handleMainSidebarClick"
     />
     
@@ -12,7 +13,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import ChatMain from '../components/ChatMain.vue'
@@ -34,6 +35,10 @@ const props = defineProps({
 
 // State
 const mainSidebarVisible = ref(false)
+const isPinnedViewOpen = ref(false)
+
+// Provide state to child components
+provide('isPinnedViewOpen', isPinnedViewOpen)
 
 // Watch for route changes to open specific chat
 watch(() => route.params.chatId, async (newChatId) => {

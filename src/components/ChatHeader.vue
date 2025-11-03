@@ -13,16 +13,16 @@ import {
   MoreOutlined
 } from '@ant-design/icons-vue'
 import TelegramSidebarLight from './TelegramSidebarLight.vue'
-import UserProfile from './UserProfile.vue'
+import { useUsersStore } from '../store/users'
 
 const chats = useChatsStore()
 const chat = useChatStore()
+const usersStore = useUsersStore()
 
 const activeChat = chats.activeChat
 
 const isConnected = computed(() => chat.state.isConnected)
 const showTelegramSidebar = ref(false)
-const showUserProfile = ref(false)
 
 
 
@@ -57,8 +57,11 @@ function showMoreOptions() {
   showTelegramSidebar.value = true
 }
 
-function handleLogout() {
-  // Handled by UserProfile component
+function showChatUserInfo() {
+  // Only show user info for private chats
+  if (activeChat?.type === 'private') {
+    showTelegramSidebar.value = true
+  }
 }
 </script>
 
@@ -72,7 +75,7 @@ function handleLogout() {
         {{ getChatAvatar(activeChat) }}
       </a-avatar>
       
-      <div class="chat-info" @click="showUserProfile = true" style="cursor: pointer;">
+      <div class="chat-info" @click="showChatUserInfo" style="cursor: pointer;">
         <div class="chat-title">
           <component 
             :is="getChatIcon(activeChat?.type)" 
@@ -140,10 +143,7 @@ function handleLogout() {
       </a-button>
     </div>
 
-    <!-- User Profile Modal -->
-    <UserProfile v-model:open="showUserProfile" @logout="handleLogout" />
-    
-    <!-- Telegram Sidebar -->
+    <!-- Telegram Sidebar (Chat Info) -->
     <TelegramSidebarLight 
       v-model:visible="showTelegramSidebar" 
       :userId="activeChat?.id"

@@ -2,16 +2,9 @@
   <a-layout-sider width="320" :collapsed-width="0" :breakpoint="'lg'" theme="light" class="chat-sidebar">
     <!-- Header -->
     <div class="sidebar-header">
-      <h3 class="sidebar-title">Chats</h3>
       <div class="header-actions">
-        <a-button type="text" @click="forceRefresh" size="small" title="Refresh chats">
-          🔄
-        </a-button>
-        <a-button type="text" @click="debugChats" size="small" title="Debug chats">
-          🐛
-        </a-button>
-        <a-button type="text" @click="showTelegramSidebar = true" class="profile-btn">
-          <a-avatar :size="32" :style="{ backgroundColor: getAvatarColor(currentUser?.id) }">
+        <a-button type="text" @click="showUserProfile = true" class="profile-btn">
+          <a-avatar :size="40" :style="{ backgroundColor: getAvatarColor(currentUser?.id) }">
             {{ userInitials }}
           </a-avatar>
         </a-button>
@@ -279,43 +272,59 @@ onMounted(() => {
 
 <style scoped>
 .chat-sidebar {
-  background: #ffffff;
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid #e8e8e8;
   display: flex;
   flex-direction: column;
   height: 100vh;
 }
 
 .sidebar-header {
-  padding: 20px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e8e8;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background: #fafafa;
-}
-
-.sidebar-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #262626;
+  justify-content: flex-end;
+  min-height: 60px;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.action-btn {
+  padding: 6px 8px !important;
+  border-radius: 8px !important;
+  color: #8c8c8c !important;
+  transition: all 0.2s ease !important;
+  font-size: 14px;
+}
+
+.action-btn:hover {
+  background-color: #f5f5f5 !important;
+  color: #1890ff !important;
 }
 
 .profile-btn {
-  padding: 4px;
-  border-radius: 50%;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.profile-btn:hover {
+  background-color: #f0f8ff !important;
+  transform: scale(1.05);
 }
 
 .search-container {
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 .search-input {
@@ -442,7 +451,23 @@ onMounted(() => {
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar-header {
-    padding: 16px 12px;
+    padding: 10px 12px;
+    min-height: 56px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .action-btn {
+    padding: 4px 6px !important;
+    font-size: 12px;
+  }
+
+  .profile-btn .ant-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
   }
 
   .search-container {
@@ -451,10 +476,6 @@ onMounted(() => {
 
   .chat-item {
     padding: 10px 12px;
-  }
-
-  .sidebar-title {
-    font-size: 18px;
   }
 
   .pin-indicator {

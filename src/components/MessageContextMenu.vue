@@ -49,7 +49,9 @@
         <div class="menu-icon">
           <PushpinOutlined />
         </div>
-        <span class="menu-text">Pin</span>
+        <span class="menu-text">
+          {{ isMessagePinned ? 'Unpin' : 'Pin' }} message
+        </span>
       </div>
 
       <div class="menu-item" @click="copyText">
@@ -92,6 +94,8 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { message, Modal } from 'ant-design-vue'
+import { usePinnedMessagesStore } from '../store/pinnedMessages'
 import {
   RollbackOutlined,
   EditOutlined,
@@ -103,7 +107,6 @@ import {
   CheckCircleOutlined,
   DownOutlined
 } from '@ant-design/icons-vue'
-import { message, Modal } from 'ant-design-vue'
 import { useMessagesStore } from '../store/messages'
 import { useAuthStore } from '../store/auth'
 
@@ -123,6 +126,10 @@ const props = defineProps({
   showReactions: {
     type: Boolean,
     default: true
+  },
+  chatId: {
+    type: String,
+    default: null
   }
 })
 
@@ -130,6 +137,7 @@ const emit = defineEmits(['close', 'action'])
 
 const messagesStore = useMessagesStore()
 const authStore = useAuthStore()
+const pinnedMessagesStore = usePinnedMessagesStore()
 
 // Quick reaction emojis
 const quickEmojis = ['👍', '😂', '❤️', '😮', '😢', '😱', '🔥']
@@ -137,6 +145,11 @@ const quickEmojis = ['👍', '😂', '❤️', '😮', '😢', '😱', '🔥']
 // Computed properties
 const canEdit = computed(() => {
   return props.messageData?.senderId === authStore.currentUser?.id
+})
+
+const isMessagePinned = computed(() => {
+  if (!props.messageData?.id || !props.chatId) return false
+  return pinnedMessagesStore.isMessagePinned(props.chatId, props.messageData.id)
 })
 
 const canDelete = computed(() => {
@@ -180,15 +193,30 @@ function editMessage() {
   closeMenu()
 }
 
-function pinMessage() {
-  if (!props.messageData?.id) return
+async function pinMessage() {
+  if (!props.messageData?.id || !props.chatId) return
   
   try {
-    messagesStore.pinMessage(props.messageData.id)
-    message.success('Message pinned')
-    emit('action', 'pin', props.messageData)
+    const chatId = props.chatId
+    const messageId = props.messageData.id
+    
+    // Check if message is already pinned
+    const isPinned = await pinnedMessagesStore.isMessagePinned(chatId, messageId)
+    
+    if (isPinned) {
+      // If already pinned, unpin it
+      await pinnedMessagesStore.unpinMessage(chatId, messageId)
+      message.success('Message unpinned')
+      emit('action', 'unpin', props.messageData)
+    } else {
+      // If not pinned, pin it
+      await pinnedMessagesStore.pinMessage(chatId, messageId)
+      message.success('Message pinned')
+      emit('action', 'pin', props.messageData)
+    }
   } catch (error) {
-    message.error('Failed to pin message')
+    console.error('Pin message error:', error)
+    message.error(error.value || 'Failed to update pin status')
   }
   closeMenu()
 }
