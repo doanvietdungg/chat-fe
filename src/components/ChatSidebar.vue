@@ -52,6 +52,8 @@
         <a-button type="primary" @click="forceRefresh">Tải lại từ API</a-button>
         <a-button type="default" @click="loadSampleData" style="margin-top: 8px;">Tạo dữ liệu mẫu</a-button>
         <a-button type="default" @click="debugChats" style="margin-top: 8px;">Debug</a-button>
+        <a-button type="default" @click="testUnreadIncrement" style="margin-top: 8px;">Test Unread</a-button>
+        <a-button type="default" @click="simulateNewMessage" style="margin-top: 8px;">Simulate Message</a-button>
       </div>
 
       <!-- Chat List -->
@@ -61,7 +63,11 @@
           @contextmenu.prevent="showContextMenu($event, chat)"
           :class="['chat-item', { 'active': chat?.id === activeChat }]">
           <div class="chat-avatar">
-            <a-badge :count="chat?.unread || 0" :offset="[5, 5]">
+            <a-badge 
+              :count="chat?.unread || 0" 
+              :offset="[5, 5]"
+              :show-zero="false"
+              :style="{ zIndex: 10 }">
               <a-avatar :style="{ backgroundColor: getAvatarColor(chat?.id) }" size="large">
                 {{ getChatAvatar(chat) }}
               </a-avatar>
@@ -76,6 +82,9 @@
 
             <div class="chat-last-message">
               {{ formatLastMessage(chat?.last) }}
+              <span v-if="chat?.unread > 0" class="unread-debug" style="color: red; font-weight: bold;">
+                ({{ chat.unread }} unread)
+              </span>
             </div>
           </div>
 
@@ -136,6 +145,14 @@ const chatList = computed(() => {
       const bUnread = b && b.unread ? b.unread : 0
 
       return (bPinned - aPinned) || (bUnread - aUnread)
+    })
+
+    // Debug log unread counts
+    console.log('📊 ChatList computed - Unread counts:')
+    sorted.forEach(chat => {
+      if (chat.unread > 0) {
+        console.log(`  - ${chat.title}: ${chat.unread} unread`)
+      }
     })
 
     return sorted
@@ -220,6 +237,11 @@ function debugChats() {
   console.log('Chats store state:', chatsStore.state)
   console.log('Chats store filtered:', chatsStore.filtered)
   console.log('Chats store loading:', chatsStore.state.loading)
+  console.log('Active chat ID:', chatsStore.state.activeChatId)
+  console.log('Unread counts:')
+  chatsStore.state.chats.forEach(chat => {
+    console.log(`  - ${chat.title}: ${chat.unread || 0} unread`)
+  })
   console.log('========================')
 }
 
@@ -262,6 +284,30 @@ function handleContextMenuAction(action) {
 function loadSampleData() {
   console.log('Loading sample data...')
   chatsStore.initSampleData()
+}
+
+function testUnreadIncrement() {
+  console.log('Testing unread increment...')
+  const firstChat = chatsStore.state.chats[0]
+  if (firstChat) {
+    console.log(`Before increment - Chat: ${firstChat.title}, Unread: ${firstChat.unread || 0}, Active: ${chatsStore.state.activeChatId}`)
+    chatsStore.incrementUnread(firstChat.id)
+    console.log(`After increment - Chat: ${firstChat.title}, Unread: ${firstChat.unread || 0}`)
+  }
+}
+
+function simulateNewMessage() {
+  console.log('Simulating new message...')
+  const firstChat = chatsStore.state.chats[0]
+  if (firstChat) {
+    // Simulate a message from another user
+    chatsStore.updateChatLastMessage(firstChat.id, {
+      text: 'Test message from another user',
+      timestamp: new Date().toISOString()
+    })
+    chatsStore.incrementUnread(firstChat.id)
+    console.log(`Simulated message for chat: ${firstChat.title}, New unread: ${firstChat.unread}`)
+  }
 }
 
 // Initialize on mount

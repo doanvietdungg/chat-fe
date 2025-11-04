@@ -35,6 +35,8 @@ api.interceptors.request.use(
 // Single-flight token refresh state
 let isRefreshing = false
 let pendingRequests = []
+let refreshAttempts = 0
+const MAX_REFRESH_ATTEMPTS = 2
 
 function subscribeTokenRefresh(cb) { pendingRequests.push(cb) }
 function onRefreshed(token) {
@@ -77,35 +79,83 @@ api.interceptors.response.use(
 
       // Start refresh
       isRefreshing = true
+      refreshAttempts++
+
       try {
+        console.log(`🔐 Attempting token refresh (attempt ${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`)
+
         const response = await refreshClient.post(
           '/auth/refresh',
           { refreshToken },
           { headers: { Authorization: `Bearer ${refreshToken}` } }
         )
 
-        const token = response?.data?.accessToken || response?.data?.token
-        const newRefresh = response?.data?.refreshToken
+        console.log('🔐 Refresh response:', response.data)
+
+        // Handle nested response structure: { success: true, data: { accessToken, refreshToken } }
+        const responseData = response?.data?.data || response?.data
+        const token = responseData?.accessToken || responseData?.token
+        const newRefresh = responseData?.refreshToken
+
+        console.log('🔐 Parsed tokens:', { token: !!token, newRefresh: !!newRefresh })
+
         if (!token) throw new Error('No token in refresh response')
+
         localStorage.setItem('auth_token', token)
         if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
 
+        // Reset attempts on success
+        refreshAttempts = 0
+
+        console.log('🔐 Token refresh successful')
+
+        // Emit event to update auth store state
+        try {
+          window.dispatchEvent(new CustomEvent('auth:token-refresh-success', {
+            detail: {
+              token,
+              refreshToken: newRefresh,
+              message: 'Token refreshed by API interceptor'
+            }
+          }))
+        } catch (_) { /* ignore */ }
+
+        // Show subtle notification for successful refresh
+        try {
+          window.dispatchEvent(new CustomEvent('auth:token-refreshed', {
+            detail: { message: 'Phiên đăng nhập đã được gia hạn tự động' }
+          }))
+        } catch (_) { /* ignore */ }
+
         onRefreshed(token)
+
         // Retry the original request
         originalRequest.headers = originalRequest.headers || {}
         originalRequest.headers.Authorization = `Bearer ${token}`
         return api(originalRequest)
       } catch (refreshError) {
+        console.error(`🔐 Token refresh failed (attempt ${refreshAttempts}):`, refreshError)
+
         onRefreshed(null)
-        // 🔥 Emit event instead of direct logout to let auth store handle it
-        window.dispatchEvent(new CustomEvent('auth:token-expired', {
-          detail: { error: refreshError }
-        }))
-        
-        // Cleanup tokens but do not hard redirect here to avoid UX disruption
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('auth_user')
+
+        // Only emit event and cleanup after max attempts
+        if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+          console.log('🔐 Max refresh attempts reached, emitting token expired event')
+
+          // 🔥 Emit event instead of direct logout to let auth store handle it
+          window.dispatchEvent(new CustomEvent('auth:token-expired', {
+            detail: { error: refreshError, attempts: refreshAttempts }
+          }))
+
+          // Cleanup tokens but do not hard redirect here to avoid UX disruption
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
+          localStorage.removeItem('auth_user')
+
+          // Reset attempts for next time
+          refreshAttempts = 0
+        }
+
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

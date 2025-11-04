@@ -46,6 +46,7 @@ export const authService = {
         refreshToken
       })
 
+      console.log('🔐 AuthService refresh response:', response.data)
       return response.data
     } catch (error) {
       const message = error.response?.data?.message || 

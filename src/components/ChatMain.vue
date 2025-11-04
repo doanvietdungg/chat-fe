@@ -9,6 +9,7 @@ import PinnedMessagesView from './PinnedMessagesView.vue'
 
 const { chatStore, messagesStore, sendMessage } = useStores()
 const showPinnedView = ref(false)
+const messageInputRef = ref(null)
 
 // Inject state from parent
 const isPinnedViewOpen = inject('isPinnedViewOpen', ref(false))
@@ -51,6 +52,20 @@ function handleAttach(file) {
   reader.readAsDataURL(file)
 }
 
+// Handle edit message
+function handleStartEdit(message) {
+  if (messageInputRef.value) {
+    messageInputRef.value.startEditMessage(message)
+  }
+}
+
+// Handle delete message
+function handleDeleteMessage(message) {
+  if (messageInputRef.value) {
+    messageInputRef.value.deleteMessage(message.id)
+  }
+}
+
 function scrollToPinnedMessage(messageId) {
   // Emit event to MessageArea to scroll to message
   console.log('Scroll to pinned message:', messageId)
@@ -86,11 +101,14 @@ function unpinAllMessages() {
         :username="chatStore.state.username"
         :loading="messagesStore.state?.loading || false"
         :chat-id="chatStore.state.currentChatId"
+        @start-edit="handleStartEdit"
+        @delete="handleDeleteMessage"
       />
     </div>
     
     <div v-if="!showPinnedView" class="input-container">
       <MessageInput 
+        ref="messageInputRef"
         @send="handleSend" 
         @attach="handleAttach" 
       />

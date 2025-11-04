@@ -239,6 +239,9 @@ export function useChatsStore() {
     const chat = state.chats.find(c => c && c.id === chatId)
     if (chat && chat.id !== state.activeChatId) {
       chat.unread = (chat.unread || 0) + 1
+      console.log(`📊 Incremented unread count for chat "${chat.title}": ${chat.unread}`)
+    } else if (chat && chat.id === state.activeChatId) {
+      console.log(`📊 Skipped incrementing unread for active chat "${chat.title}"`)
     }
   }
 
@@ -246,7 +249,9 @@ export function useChatsStore() {
   function clearUnread(chatId) {
     const chat = state.chats.find(c => c && c.id === chatId)
     if (chat) {
+      const oldUnread = chat.unread
       chat.unread = 0
+      console.log(`📊 Cleared unread count for chat "${chat.title}": ${oldUnread} → 0`)
     }
   }
 

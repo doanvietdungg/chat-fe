@@ -1,115 +1,93 @@
+<template>
+  <div class="message-reactions" v-if="reactions && reactions.length > 0">
+    <div 
+      v-for="reaction in groupedReactions" 
+      :key="reaction.emoji"
+      class="reaction-item"
+      :class="{ 'user-reacted': reaction.userReacted }"
+      @click="toggleReaction(reaction.emoji)"
+    >
+      <span class="reaction-emoji">{{ reaction.emoji }}</span>
+      <span class="reaction-count">{{ reaction.count }}</span>
+    </div>
+    
+    <a-button 
+      type="text" 
+      size="small" 
+      class="add-reaction-btn"
+      @click="showReactionPicker"
+    >
+      <template #icon>
+        <SmileOutlined />
+      </template>
+    </a-button>
+  </div>
+</template>
+
 <script setup>
 import { computed } from 'vue'
 import { SmileOutlined } from '@ant-design/icons-vue'
-import { useStores } from '../composables/useStores'
+import { useAuthStore } from '../store/auth'
 
 const props = defineProps({
   messageId: { type: String, required: true },
   reactions: { type: Array, default: () => [] }
 })
 
-const { messagesStore, uiStore } = useStores()
+const emit = defineEmits(['toggle-reaction', 'show-picker'])
 
-// Group reactions by emoji and check if current user reacted
+const authStore = useAuthStore()
+
 const groupedReactions = computed(() => {
-  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
-  return props.reactions.map(reaction => ({
-    ...reaction,
-    userReacted: reaction.users.includes(currentUserId)
-  }))
-})
-
-const hasReactions = computed(() => {
-  return props.reactions && props.reactions.length > 0
+  const grouped = {}
+  
+  props.reactions.forEach(reaction => {
+    if (!grouped[reaction.emoji]) {
+      grouped[reaction.emoji] = {
+        emoji: reaction.emoji,
+        count: 0,
+        users: [],
+        userReacted: false
+      }
+    }
+    
+    grouped[reaction.emoji].count++
+    grouped[reaction.emoji].users.push(reaction.userId)
+    
+    if (reaction.userId === authStore.user?.id) {
+      grouped[reaction.emoji].userReacted = true
+    }
+  })
+  
+  return Object.values(grouped).sort((a, b) => b.count - a.count)
 })
 
 function toggleReaction(emoji) {
-  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
-  const reaction = props.reactions.find(r => r.emoji === emoji)
-  const userReacted = reaction?.users.includes(currentUserId)
-  
-  if (userReacted) {
-    messagesStore.removeReaction(props.messageId, emoji)
-  } else {
-    messagesStore.addReaction(props.messageId, emoji)
-  }
+  emit('toggle-reaction', { messageId: props.messageId, emoji })
 }
 
 function showReactionPicker() {
-  uiStore.openModal('reactions', { messageId: props.messageId })
-}
-
-function showReactionUsers(reaction) {
-  // Show tooltip or modal with users who reacted
-  const currentUserId = messagesStore.getCurrentUser?.()?.id || 'user-me'
-  const userNames = reaction.users.map(userId => {
-    // In real app, would get user names from user store
-    return userId === currentUserId ? 'You' : `User ${userId.slice(-3)}`
-  })
-  
-  uiStore.addNotification({
-    type: 'info',
-    message: `${reaction.emoji} ${userNames.join(', ')}`,
-    duration: 2000
-  })
+  emit('show-picker', props.messageId)
 }
 </script>
 
-<template>
-  <div v-if="hasReactions" class="message-reactions">
-    <div class="reactions-container">
-      <div 
-        v-for="reaction in groupedReactions" 
-        :key="reaction.emoji"
-        :class="[
-          'reaction-item', 
-          { 
-            'user-reacted': reaction.userReacted,
-            'single-reaction': reaction.count === 1
-          }
-        ]"
-        @click="toggleReaction(reaction.emoji)"
-        @mouseenter="showReactionUsers(reaction)"
-        :title="`${reaction.count} reaction${reaction.count > 1 ? 's' : ''}`"
-      >
-        <span class="reaction-emoji">{{ reaction.emoji }}</span>
-        <span v-if="reaction.count > 1" class="reaction-count">{{ reaction.count }}</span>
-      </div>
-      
-      <a-button 
-        type="text" 
-        size="small" 
-        @click="showReactionPicker"
-        class="add-reaction-btn"
-        :title="'Add reaction'"
-      >
-        <template #icon><SmileOutlined /></template>
-      </a-button>
-    </div>
-  </div>
-</template>
-
 <style scoped>
 .message-reactions {
-  margin-top: var(--spacing-xs);
-  margin-bottom: var(--spacing-xs);
-}
-
-.reactions-container {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-xs);
+  gap: 4px;
+  margin-top: 8px;
   align-items: center;
 }
 
 .reaction-item {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 12px;
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -117,18 +95,15 @@ function showReactionUsers(reaction) {
 }
 
 .reaction-item:hover {
-  background: var(--border-light);
+  background: rgba(24, 144, 255, 0.1);
+  border-color: #1890ff;
   transform: scale(1.05);
 }
 
 .reaction-item.user-reacted {
-  background: rgba(24, 144, 255, 0.1);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-.reaction-item.user-reacted:hover {
-  background: rgba(24, 144, 255, 0.2);
+  background: rgba(24, 144, 255, 0.15);
+  border-color: #1890ff;
+  color: #1890ff;
 }
 
 .reaction-emoji {
@@ -137,68 +112,91 @@ function showReactionUsers(reaction) {
 }
 
 .reaction-count {
-  font-size: 11px;
   font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 11px;
   min-width: 8px;
   text-align: center;
 }
 
-.reaction-item.user-reacted .reaction-count {
-  color: var(--primary-color);
-}
-
 .add-reaction-btn {
-  height: 24px;
-  width: 24px;
   padding: 0;
+  width: 24px;
+  height: 24px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.6;
-  transition: all 0.2s ease;
+  font-size: 12px;
+  color: #8c8c8c;
+  border: 1px dashed rgba(0, 0, 0, 0.2);
 }
 
 .add-reaction-btn:hover {
-  opacity: 1;
-  background: var(--border-light);
-  transform: scale(1.1);
+  color: #1890ff;
+  border-color: #1890ff;
+  background: rgba(24, 144, 255, 0.05);
 }
 
-/* Animation for new reactions */
+/* Dark theme for own messages */
+.own-message .message-reactions .reaction-item {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.own-message .message-reactions .reaction-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.own-message .message-reactions .reaction-item.user-reacted {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.own-message .add-reaction-btn {
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.own-message .add-reaction-btn:hover {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Animation */
 .reaction-item {
-  animation: reactionPop 0.3s ease-out;
+  animation: reactionAppear 0.3s ease-out;
 }
 
-@keyframes reactionPop {
-  0% {
+@keyframes reactionAppear {
+  from {
     opacity: 0;
-    transform: scale(0.5);
+    transform: scale(0.8);
   }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: scale(1);
   }
 }
 
-/* Responsive design */
-@media (max-width: 576px) {
+/* Mobile responsive */
+@media (max-width: 768px) {
   .reaction-item {
-    padding: 1px 4px;
+    padding: 1px 6px;
     font-size: 11px;
+    min-height: 22px;
   }
   
   .reaction-emoji {
-    font-size: 12px;
+    font-size: 13px;
   }
   
   .add-reaction-btn {
-    height: 20px;
-    width: 20px;
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
   }
 }
 </style>

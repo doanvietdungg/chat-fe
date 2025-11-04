@@ -61,7 +61,18 @@ export function useChatStore() {
 
   async function sendMessage(text, options = {}) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    const {
+      type = 'TEXT',
+      fileId = null,
+      fileName = null,
+      fileUrl = null,
+      fileSize = null,
+      contentType = null,
+      caption = ''
+    } = options
+
+    // Allow empty text for file messages
+    if (!trimmed && !fileId) return
 
     const messagesStore = useMessagesStore()
     const chatsStore = useChatsStore()
@@ -115,8 +126,13 @@ export function useChatStore() {
       const payload = {
         chatId: chatId,
         recipientId: recipientId,
-        text: trimmed,
-        type: 'TEXT' // MessageType.TEXT from backend enum
+        text: trimmed || caption, // Use caption for file messages
+        type: type, // Use provided type (TEXT, IMAGE, VIDEO, etc.)
+        fileId: fileId,
+        fileName: fileName,
+        fileUrl: fileUrl,
+        fileSize: fileSize,
+        contentType: contentType
       }
 
       // Get current user info
@@ -130,15 +146,53 @@ export function useChatStore() {
         timestamp: new Date().toISOString(),
         authorId: currentUser?.id || 'current_user',
         author: currentUser?.name || currentUser?.username || 'You',
+        // Add file-specific fields for display
+        media: fileId ? {
+          fileId,
+          fileName,
+          fileUrl,
+          fileSize,
+          contentType,
+          type: type.toLowerCase()
+        } : null
       }
 
       console.log('Sending message with data:', messageData)
       const optimisticMessage = messagesStore.addMessage(messageData)
 
-      // Send via STOMP WebSocket
-      stompService.send('/app/messages.send', payload)
+      // 1. First call API to send message
+      try {
+        const { messageAPI } = await import('../services/api.js')
+        
+        const apiPayload = {
+          chatId: chatId, // Include chatId in payload
+          text: trimmed || caption,
+          type: type,
+          fileId: fileId,
+          fileName: fileName,
+          fileUrl: fileUrl,
+          fileSize: fileSize,
+          contentType: contentType,
+          recipientId: recipientId
+        }
+        
+        console.log('📤 API payload:', apiPayload)
+        const apiResponse = await messageAPI.sendMessage(chatId, apiPayload)
 
-      return optimisticMessage
+        console.log('📤 API send message response:', apiResponse)
+
+        // 2. Then send via WebSocket (for real-time notification)
+        console.log('📡 WebSocket payload:', payload)
+        stompService.send('/app/messages.send', payload)
+
+        return optimisticMessage
+
+      } catch (apiError) {
+        console.error('📤 API send message failed:', apiError)
+        // Remove optimistic message if API fails
+        messagesStore.removeMessage(optimisticMessage.id)
+        throw apiError
+      }
     } catch (e) {
       throw e
     } finally {
@@ -147,11 +201,27 @@ export function useChatStore() {
   }
 
   function setCurrentChat(chatId) {
+    const previousChatId = state.currentChatId
     state.currentChatId = chatId
 
-    // Clear unread count for this chat
+    // Sync with chats store active chat
     const chatsStore = useChatsStore()
+    chatsStore.setActive(chatId)
+
+    // Clear unread count for this chat
     chatsStore.clearUnread(chatId)
+
+    // Clear typing indicators when switching chats
+    if (previousChatId && previousChatId !== chatId) {
+      const messagesStore = useMessagesStore()
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.id
+      
+      // Stop typing in previous chat if we were typing
+      if (currentUserId) {
+        messagesStore.setTyping(currentUserId, false, previousChatId)
+      }
+    }
 
     // Subscribe to this chat for real-time messages
     if (chatId && !chatId.startsWith('draft-')) {
@@ -193,6 +263,8 @@ export function useChatStore() {
         // Only add message if it's not from current user (avoid duplicates)
         // Current user's messages are already added optimistically
         if (message.authorId !== currentUserId) {
+          console.log(`📨 Processing new message from ${message.authorId} in chat ${message.chatId}`)
+          
           const addedMessage = messagesStore.addMessage({
             id: message.id,
             chatId: message.chatId,
@@ -205,7 +277,11 @@ export function useChatStore() {
           // Update chat's last message and increment unread
           const chatsStore = useChatsStore()
           chatsStore.updateChatLastMessage(message.chatId, addedMessage)
+          
+          console.log(`📊 Current active chat: ${chatsStore.state.activeChatId}, Message chat: ${message.chatId}`)
           chatsStore.incrementUnread(message.chatId)
+        } else {
+          console.log(`📨 Skipping message from current user ${currentUserId}`)
         }
       }
     })
@@ -222,7 +298,8 @@ export function useChatStore() {
 
         // Don't show typing indicator for current user
         if (typingData.userId !== currentUserId) {
-          messagesStore.setTyping(typingData.userId, typingData.isTyping)
+          // Pass chatId to setTyping for chat-specific typing
+          messagesStore.setTyping(typingData.userId, typingData.isTyping, chatId)
         }
       }
     })
@@ -485,6 +562,8 @@ export function useChatStore() {
         text: messagePayload.text,
         timestamp: new Date().toISOString()
       })
+      
+      console.log(`📊 [message.first] Current active chat: ${chatsStore.state.activeChatId}, Message chat: ${existingChat.id}`)
       chatsStore.incrementUnread(existingChat.id)
     } else {
       // 🔥 Tạo chat mới và đặt lên đầu

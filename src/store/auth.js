@@ -62,6 +62,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       localStorage.setItem('auth_user', JSON.stringify(userObj))
 
+      // Start periodic token check
+      startTokenCheck()
+
       // Connect STOMP (SockJS)
       try {
         stompService.connect()
@@ -105,6 +108,10 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     isAuthenticated.value = false
     error.value = null
+    
+    // Stop periodic token check
+    stopTokenCheck()
+    
     localStorage.removeItem('auth_user')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
@@ -160,9 +167,9 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('Saved token exists:', !!savedToken)
 
       if (savedUser && savedToken) {
-        // Check if token is expired before setting authenticated
-        if (isTokenExpired(savedToken)) {
-          console.log('🔐 Token expired, attempting refresh...')
+        // Check if token is expired or will expire soon (within 5 minutes)
+        if (isTokenExpired(savedToken) || isTokenExpiringSoon(savedToken)) {
+          console.log('🔐 Token expired or expiring soon, attempting refresh...')
           await attemptTokenRefresh()
           return
         }
@@ -192,6 +199,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 🔥 Check if JWT token will expire soon (within 5 minutes)
+  const isTokenExpiringSoon = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const currentTime = Date.now() / 1000
+      const fiveMinutesFromNow = currentTime + (5 * 60) // 5 minutes in seconds
+      return payload.exp < fiveMinutesFromNow
+    } catch (error) {
+      console.error('Error parsing token:', error)
+      return true // Treat invalid tokens as expiring soon
+    }
+  }
+
   // 🔥 Attempt to refresh token silently
   const attemptTokenRefresh = async () => {
     const refreshToken = localStorage.getItem('refresh_token')
@@ -204,8 +224,16 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       isLoading.value = true
       const response = await authAPI.refreshToken(refreshToken)
-      const newToken = response?.data?.accessToken || response?.data?.token
-      const newRefresh = response?.data?.refreshToken
+      
+      console.log('🔐 Auth store refresh response:', response)
+      
+      // AuthService returns full response.data, so we need to access nested data
+      // Response structure: { success: true, data: { accessToken, refreshToken } }
+      const responseData = response?.data || response
+      const newToken = responseData?.accessToken || responseData?.token
+      const newRefresh = responseData?.refreshToken
+      
+      console.log('🔐 Auth store parsed tokens:', { newToken: !!newToken, newRefresh: !!newRefresh })
 
       if (newToken) {
         localStorage.setItem('auth_token', newToken)
@@ -216,9 +244,17 @@ export const useAuthStore = defineStore('auth', () => {
         if (savedUser) {
           user.value = JSON.parse(savedUser)
           isAuthenticated.value = true
-          console.log('🔐 Token refreshed successfully')
+          
+          console.log('🔐 Token refreshed successfully - isAuthenticated:', isAuthenticated.value)
+          console.log('🔐 User after refresh:', user.value)
+          
+          // Restart token check
+          startTokenCheck()
+        } else {
+          console.log('🔐 No saved user found after token refresh')
         }
       } else {
+        console.log('🔐 No new token received in refresh response')
         throw new Error('No token in refresh response')
       }
     } catch (error) {
@@ -233,12 +269,80 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
+  // 🔥 Handle token refresh success events
+  const handleTokenRefreshed = (event) => {
+    console.log('🔐 Token refreshed event received:', event.detail)
+    // Could show a subtle notification here if needed
+    // For now, just clear any existing error
+    error.value = null
+  }
+
+  // 🔥 Handle token refresh success from API interceptor
+  const handleTokenRefreshSuccess = (event) => {
+    console.log('🔐 Token refresh success event received:', event.detail)
+    
+    // Ensure auth store state is correct after API interceptor refresh
+    const savedUser = localStorage.getItem('auth_user')
+    if (savedUser && !isAuthenticated.value) {
+      user.value = JSON.parse(savedUser)
+      isAuthenticated.value = true
+      console.log('🔐 Updated auth store state from API interceptor refresh')
+      
+      // Restart token check
+      startTokenCheck()
+    }
+    
+    // Clear any existing error
+    error.value = null
+  }
+
   // 🔥 Handle token expiry events
-  const handleTokenExpiry = (event) => {
+  const handleTokenExpiry = async (event) => {
     console.log('🔐 Token expired event received:', event.detail)
+    
+    // Try to refresh token one more time before logging out
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (refreshToken) {
+      console.log('🔐 Attempting final token refresh...')
+      try {
+        await attemptTokenRefresh()
+        console.log('🔐 Final token refresh successful, staying logged in')
+        return // Stay logged in
+      } catch (refreshError) {
+        console.error('🔐 Final token refresh failed:', refreshError)
+      }
+    }
+    
+    // Only logout if refresh fails or no refresh token
+    console.log('🔐 Logging out due to token expiry')
     error.value = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
     isAuthenticated.value = false
     user.value = null
+  }
+
+  // 🔥 Periodic token check
+  let tokenCheckInterval = null
+
+  const startTokenCheck = () => {
+    // Check token every 2 minutes
+    tokenCheckInterval = setInterval(async () => {
+      const token = localStorage.getItem('auth_token')
+      if (token && isAuthenticated.value && isTokenExpiringSoon(token)) {
+        console.log('🔐 Token expiring soon, refreshing proactively...')
+        try {
+          await attemptTokenRefresh()
+        } catch (error) {
+          console.error('🔐 Proactive token refresh failed:', error)
+        }
+      }
+    }, 2 * 60 * 1000) // 2 minutes
+  }
+
+  const stopTokenCheck = () => {
+    if (tokenCheckInterval) {
+      clearInterval(tokenCheckInterval)
+      tokenCheckInterval = null
+    }
   }
 
   // Initialize
@@ -246,14 +350,25 @@ export const useAuthStore = defineStore('auth', () => {
     console.log('Initializing auth store...')
     await loadUserFromStorage()
     
-    // Listen for token expiry events
+    // Listen for token events
     window.addEventListener('auth:token-expired', handleTokenExpiry)
+    window.addEventListener('auth:token-refreshed', handleTokenRefreshed)
+    window.addEventListener('auth:token-refresh-success', handleTokenRefreshSuccess)
+    
+    // Start periodic token check if authenticated
+    if (isAuthenticated.value) {
+      startTokenCheck()
+    }
+    
     console.log('Auth store initialized')
   }
 
   // 🔥 Cleanup event listeners
   const cleanup = () => {
     window.removeEventListener('auth:token-expired', handleTokenExpiry)
+    window.removeEventListener('auth:token-refreshed', handleTokenRefreshed)
+    window.removeEventListener('auth:token-refresh-success', handleTokenRefreshSuccess)
+    stopTokenCheck()
   }
 
   return {
@@ -277,6 +392,9 @@ export const useAuthStore = defineStore('auth', () => {
     init,
     cleanup,
     attemptTokenRefresh,
-    isTokenExpired
+    isTokenExpired,
+    isTokenExpiringSoon,
+    startTokenCheck,
+    stopTokenCheck
   }
 })

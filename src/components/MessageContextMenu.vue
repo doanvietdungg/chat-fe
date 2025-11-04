@@ -144,7 +144,8 @@ const quickEmojis = ['👍', '😂', '❤️', '😮', '😢', '😱', '🔥']
 
 // Computed properties
 const canEdit = computed(() => {
-  return props.messageData?.senderId === authStore.currentUser?.id
+  return props.messageData?.authorId === authStore.user?.id || 
+         String(props.messageData?.authorId) === String(authStore.user?.id)
 })
 
 const isMessagePinned = computed(() => {
@@ -153,7 +154,14 @@ const isMessagePinned = computed(() => {
 })
 
 const canDelete = computed(() => {
-  return props.messageData?.senderId === authStore.currentUser?.id
+  console.log('Debug canDelete:', {
+    messageAuthorId: props.messageData?.authorId,
+    currentUserId: authStore.user?.id,
+    messageData: props.messageData,
+    user: authStore.user
+  })
+  return props.messageData?.authorId === authStore.user?.id || 
+         String(props.messageData?.authorId) === String(authStore.user?.id)
 })
 
 // Methods

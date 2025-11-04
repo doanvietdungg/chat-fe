@@ -6,7 +6,8 @@ const state = reactive({
   loading: false,
   messages: [], // Start with empty array, will be populated from API only
 
-  typingUsers: [], // Users currently typing
+  typingUsers: [], // Users currently typing (global - deprecated)
+  typingByChat: {}, // Users typing by chat ID: { chatId: [userId1, userId2] }
   editingMessageId: null,
   replyingTo: null,
   selectedMessages: [], // For forwarding/bulk actions
@@ -47,24 +48,52 @@ export function useMessagesStore() {
     }
 
     // Map API messages to local message format
-    const mapped = content.map(message => ({
-      id: message.id,
-      chatId: message.chatId || chatId,
-      text: message.text || '',
-      author: 'Unknown', // Will be resolved from users store
-      authorId: message.authorId,
-      timestamp: message.createdAt || new Date().toISOString(),
-      at: message.createdAt || new Date().toISOString(),
-      edited: message.createdAt !== message.updatedAt,
-      editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
-      reactions: [],
-      replyTo: null,
-      forwarded: null,
-      readBy: [],
-      media: message.fileId ? { fileId: message.fileId } : null,
-      voice: null,
-      type: message.type?.toLowerCase() || 'text'
-    }))
+    const mapped = content.map(message => {
+      // Handle file/media data from API
+      let media = null
+      if (message.file && message.fileId) {
+        // Use file object from API response
+        media = {
+          fileId: message.fileId,
+          fileName: message.file.name,
+          fileUrl: message.file.url,
+          fileSize: message.file.size,
+          contentType: message.file.contentType,
+          type: message.type?.toLowerCase() || 'file'
+        }
+        console.log('📎 Parsed file message:', { messageId: message.id, media })
+      } else if (message.fileId) {
+        // Fallback if only fileId exists
+        media = {
+          fileId: message.fileId,
+          fileName: 'Unknown file',
+          fileUrl: null,
+          fileSize: 0,
+          contentType: null,
+          type: message.type?.toLowerCase() || 'file'
+        }
+        console.log('📎 Parsed file message (fallback):', { messageId: message.id, media })
+      }
+
+      return {
+        id: message.id,
+        chatId: message.chatId || chatId,
+        text: message.text || '',
+        author: 'Unknown', // Will be resolved from users store
+        authorId: message.authorId,
+        timestamp: message.createdAt || new Date().toISOString(),
+        at: message.createdAt || new Date().toISOString(),
+        edited: message.createdAt !== message.updatedAt,
+        editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
+        reactions: [],
+        replyTo: null,
+        forwarded: null,
+        readBy: [],
+        media: media,
+        voice: null,
+        type: message.type?.toLowerCase() || 'text'
+      }
+    })
 
     // Sort messages by timestamp (oldest first for display)
     const sortedMessages = mapped.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
@@ -118,7 +147,14 @@ export function useMessagesStore() {
       replyTo: messageData.replyTo || null,
       forwarded: messageData.forwarded || null,
       readBy: messageData.readBy || [],
-      media: messageData.media || (messageData.fileId ? { fileId: messageData.fileId } : null),
+      media: messageData.media || (messageData.fileId ? {
+        fileId: messageData.fileId,
+        fileName: messageData.fileName || 'Unknown file',
+        fileUrl: messageData.fileUrl || null,
+        fileSize: messageData.fileSize || 0,
+        contentType: messageData.contentType || null,
+        type: messageData.type?.toLowerCase() || 'file'
+      } : null),
       voice: messageData.voice || null,
       type: (messageData.type || 'text').toLowerCase()
     }
@@ -154,6 +190,15 @@ export function useMessagesStore() {
     }
 
     return message
+  }
+
+  function removeMessage(messageId) {
+    const messageIndex = state.messages.findIndex(m => m.id === messageId)
+    if (messageIndex !== -1) {
+      state.messages.splice(messageIndex, 1)
+      return true
+    }
+    return false
   }
 
   function editMessage(messageId, newText) {
@@ -291,15 +336,43 @@ export function useMessagesStore() {
     state.editingMessageId = null
   }
 
-  // Typing indicators
-  function setTyping(userId, isTyping) {
+  // Typing indicators - with chat support
+  function setTyping(userId, isTyping, chatId = null) {
+    // Legacy support - global typing (deprecated)
     const index = state.typingUsers.indexOf(userId)
-
     if (isTyping && index === -1) {
       state.typingUsers.push(userId)
     } else if (!isTyping && index > -1) {
       state.typingUsers.splice(index, 1)
     }
+
+    // New chat-specific typing
+    if (chatId) {
+      if (!state.typingByChat[chatId]) {
+        state.typingByChat[chatId] = []
+      }
+
+      const chatTypingUsers = state.typingByChat[chatId]
+      const chatIndex = chatTypingUsers.indexOf(userId)
+
+      if (isTyping && chatIndex === -1) {
+        chatTypingUsers.push(userId)
+        console.log(`🔤 User ${userId} started typing in chat ${chatId}`)
+      } else if (!isTyping && chatIndex > -1) {
+        chatTypingUsers.splice(chatIndex, 1)
+        console.log(`🔤 User ${userId} stopped typing in chat ${chatId}`)
+        
+        // Clean up empty arrays
+        if (chatTypingUsers.length === 0) {
+          delete state.typingByChat[chatId]
+        }
+      }
+    }
+  }
+
+  // Get typing users for a specific chat
+  function getTypingUsersForChat(chatId) {
+    return state.typingByChat[chatId] || []
   }
 
   // Message selection for forwarding
@@ -478,24 +551,50 @@ export function useMessagesStore() {
 
       if (Array.isArray(content) && content.length > 0) {
         // Map and add older messages
-        const mapped = content.map(message => ({
-          id: message.id,
-          chatId: message.chatId || chatId,
-          text: message.text || '',
-          author: 'Unknown',
-          authorId: message.authorId,
-          timestamp: message.createdAt || new Date().toISOString(),
-          at: message.createdAt || new Date().toISOString(),
-          edited: message.createdAt !== message.updatedAt,
-          editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
-          reactions: [],
-          replyTo: null,
-          forwarded: null,
-          readBy: [],
-          media: message.fileId ? { fileId: message.fileId } : null,
-          voice: null,
-          type: message.type?.toLowerCase() || 'text'
-        }))
+        const mapped = content.map(message => {
+          // Handle file/media data from API
+          let media = null
+          if (message.file && message.fileId) {
+            // Use file object from API response
+            media = {
+              fileId: message.fileId,
+              fileName: message.file.name,
+              fileUrl: message.file.url,
+              fileSize: message.file.size,
+              contentType: message.file.contentType,
+              type: message.type?.toLowerCase() || 'file'
+            }
+          } else if (message.fileId) {
+            // Fallback if only fileId exists
+            media = {
+              fileId: message.fileId,
+              fileName: 'Unknown file',
+              fileUrl: null,
+              fileSize: 0,
+              contentType: null,
+              type: message.type?.toLowerCase() || 'file'
+            }
+          }
+
+          return {
+            id: message.id,
+            chatId: message.chatId || chatId,
+            text: message.text || '',
+            author: 'Unknown',
+            authorId: message.authorId,
+            timestamp: message.createdAt || new Date().toISOString(),
+            at: message.createdAt || new Date().toISOString(),
+            edited: message.createdAt !== message.updatedAt,
+            editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
+            reactions: [],
+            replyTo: null,
+            forwarded: null,
+            readBy: [],
+            media: media,
+            voice: null,
+            type: message.type?.toLowerCase() || 'text'
+          }
+        })
 
         // Insert older messages at the beginning
         const existingMessages = state.messages.filter(m => m.chatId === chatId)
@@ -549,6 +648,7 @@ export function useMessagesStore() {
     loadMessagesForChat,
     loadMoreMessages,
     addMessage,
+    removeMessage,
     editMessage,
     deleteMessage,
     undoDelete,
@@ -570,6 +670,7 @@ export function useMessagesStore() {
 
     // Typing
     setTyping,
+    getTypingUsersForChat,
 
     // Selection
     toggleMessageSelection,

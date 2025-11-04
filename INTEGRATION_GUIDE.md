@@ -72,6 +72,7 @@ export function useChatStore() {
   async function sendMessage(text) {
     try {
       const response = await messageAPI.sendMessage(state.activeChatId, {
+        chatId: state.activeChatId,
         text,
         type: 'text'
       })

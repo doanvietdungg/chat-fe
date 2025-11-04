@@ -22,12 +22,30 @@
 import { computed } from 'vue'
 import { useMessagesStore } from '../store/messages'
 import { useUsersStore } from '../store/users'
+import { useChatStore } from '../store/chat'
+
+const props = defineProps({
+  chatId: {
+    type: String,
+    default: null
+  }
+})
 
 const messagesStore = useMessagesStore()
 const usersStore = useUsersStore()
+const chatStore = useChatStore()
 
 // Computed
 const typingUsers = computed(() => {
+  // Use chatId from props or current chat from store
+  const currentChatId = props.chatId || chatStore.state.currentChatId
+  
+  if (currentChatId) {
+    // Get typing users for specific chat
+    return messagesStore.getTypingUsersForChat(currentChatId)
+  }
+  
+  // Fallback to global typing (deprecated)
   return messagesStore.state.typingUsers || []
 })
 

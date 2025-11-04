@@ -14,6 +14,7 @@ import MessageContextMenu from './MessageContextMenu.vue'
 import TypingIndicator from './TypingIndicator.vue'
 import { useStores } from '../composables/useStores'
 import { useAuthStore } from '../store/auth'
+import { formatFileSize, detectFileType, getFileIcon as getFileIconUtil } from '../utils/fileUtils.js'
 
 const props = defineProps({
   messages: { type: Array, required: true },
@@ -87,33 +88,11 @@ function formatTime(timestamp) {
   })
 }
 
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
 
-function getFileIcon(fileType) {
-  if (!fileType) return FileOutlined
-  
-  if (fileType.startsWith('image/')) return PictureOutlined
-  if (fileType.startsWith('video/')) return VideoCameraOutlined
-  if (fileType.startsWith('audio/')) return CustomerServiceOutlined
-  
-  return FileOutlined
-}
 
-function getFileTypeColor(fileType) {
-  if (!fileType) return '#1890ff'
-  
-  if (fileType.startsWith('image/')) return '#52c41a'
-  if (fileType.startsWith('video/')) return '#722ed1'
-  if (fileType.startsWith('audio/')) return '#fa8c16'
-  
-  return '#1890ff'
-}
+
+
+
 
 function scrollToBottom() {
   nextTick(() => {
@@ -149,15 +128,16 @@ function handleContextMenuAction(action, data) {
       emit('reply', data)
       break
     case 'edit':
-      // Emit edit event to parent
-      emit('edit', data)
+      // Emit start-edit event to parent (MessageInput)
+      emit('start-edit', data)
       break
     case 'forward':
       // Emit forward event to parent
       emit('forward', data)
       break
     case 'delete':
-      // Message already deleted in store
+      // Emit delete event to parent
+      emit('delete', data)
       break
     case 'select':
       // Emit select event to parent
@@ -176,8 +156,57 @@ watch(() => props.messages.length, () => {
   scrollToBottom()
 }, { immediate: true })
 
+// File helper functions
+function isImageMessage(message) {
+  const type = getFileType(message)
+  return type === 'image' || (message.type && message.type.toLowerCase() === 'image')
+}
+
+function getFileType(message) {
+  if (message.media?.type) return message.media.type
+  if (message.file?.type) return message.file.type
+  if (message.media?.fileName) return detectFileType(message.media.fileName)
+  if (message.file?.name) return detectFileType(message.file.name)
+  return 'file'
+}
+
+function getFileName(message) {
+  return message.media?.fileName || message.file?.name || 'Unknown file'
+}
+
+function getFileSize(message) {
+  return message.media?.fileSize || message.file?.size || 0
+}
+
+function getFileUrl(message) {
+  return message.media?.fileUrl || message.fileUrl || message.file?.url || '#'
+}
+
+function getFileIcon(type) {
+  return getFileIconUtil(type) || FileOutlined
+}
+
+function getFileTypeColor(type) {
+  switch (type) {
+    case 'image': return 'blue'
+    case 'video': return 'purple'
+    case 'audio': return 'green'
+    case 'document': return 'orange'
+    case 'archive': return 'red'
+    default: return 'default'
+  }
+}
+
+function openImagePreview(message) {
+  // TODO: Implement image preview modal
+  const url = getFileUrl(message)
+  if (url && url !== '#') {
+    window.open(url, '_blank')
+  }
+}
+
 // Define emits
-const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
+const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start-edit'])
 </script>
 
 <template>
@@ -238,27 +267,40 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
             </div>
 
             <!-- File Attachment -->
-            <div v-if="message.file" class="message-file">
-              <a-tag 
-                :color="getFileTypeColor(message.file.type)"
-                class="file-tag"
-              >
-                <template #icon>
-                  <component :is="getFileIcon(message.file.type)" />
-                </template>
-                <span class="file-info">
-                  <span class="file-name">{{ message.file.name }}</span>
-                  <span class="file-size">({{ formatFileSize(message.file.size) }})</span>
-                </span>
-              </a-tag>
+            <div v-if="message.media || message.file" class="message-file">
+              <!-- Image Display -->
+              <div v-if="isImageMessage(message)" class="image-message">
+                <img 
+                  :src="getFileUrl(message)" 
+                  :alt="getFileName(message)"
+                  class="message-image"
+                  @click="openImagePreview(message)"
+                />
+              </div>
               
-              <div v-if="message.fileUrl" class="file-actions">
-                <a :href="message.fileUrl" target="_blank" download>
-                  <a-button type="link" size="small">
-                    <template #icon><DownloadOutlined /></template>
-                    Tải xuống
-                  </a-button>
-                </a>
+              <!-- File Display -->
+              <div v-else class="file-display">
+                <a-tag 
+                  :color="getFileTypeColor(getFileType(message))"
+                  class="file-tag"
+                >
+                  <template #icon>
+                    <component :is="getFileIcon(getFileType(message))" />
+                  </template>
+                  <span class="file-info">
+                    <span class="file-name">{{ getFileName(message) }}</span>
+                    <span class="file-size">({{ formatFileSize(getFileSize(message)) }})</span>
+                  </span>
+                </a-tag>
+                
+                <div class="file-actions">
+                  <a :href="getFileUrl(message)" target="_blank" download>
+                    <a-button type="link" size="small">
+                      <template #icon><DownloadOutlined /></template>
+                      Tải xuống
+                    </a-button>
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -269,7 +311,7 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
             </div>
             
             <!-- Debug: Show message data -->
-            <div v-if="!message.text && !message.file && !message.deleted" class="debug-message">
+            <div v-if="!message.text && !message.media && !message.file && !message.deleted" class="debug-message">
               <small>Debug: {{ JSON.stringify(message) }}</small>
             </div>
 
@@ -302,7 +344,7 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
       </div>
       
       <!-- Typing Indicator -->
-      <TypingIndicator />
+      <TypingIndicator :chat-id="props.chatId" />
       
       <!-- Loading state -->
       <div v-if="loading" class="loading-messages">
@@ -486,7 +528,65 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select'])
 }
 
 .message-file {
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: 8px;
+}
+
+.image-message {
+  max-width: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.image-message:hover {
+  transform: scale(1.02);
+}
+
+.message-image {
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: cover;
+  display: block;
+}
+
+.file-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 300px;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .file-tag {

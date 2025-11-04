@@ -277,11 +277,11 @@ function testTyping() {
   const messagesStore = useMessagesStore()
   
   // Simulate user typing
-  messagesStore.setTyping('user-123', true)
+  messagesStore.setTyping('user-123', true, 'demo-chat')
   
   // Stop typing after 10 seconds
   setTimeout(() => {
-    messagesStore.setTyping('user-123', false)
+    messagesStore.setTyping('user-123', false, 'demo-chat')
   }, 10000)
   
   notificationStore.showInfo(

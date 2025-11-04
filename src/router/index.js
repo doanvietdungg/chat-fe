@@ -45,6 +45,12 @@ const routes = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/demo/file-upload',
+    name: 'FileUploadDemo',
+    component: () => import('../components/FileUploadDemo.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/demo/context-menu',
     name: 'MessageContextMenuDemo',
     component: () => import('../components/MessageContextMenuDemo.vue'),
@@ -60,6 +66,18 @@ const routes = [
     path: '/demo/sidebar',
     name: 'MainSidebarDemo',
     component: () => import('../components/MainSidebarDemo.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/demo/new-features',
+    name: 'NewFeaturesDemo',
+    component: () => import('../views/NewFeaturesDemo.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/demo/simple',
+    name: 'SimpleDemo',
+    component: () => import('../views/SimpleDemo.vue'),
     meta: { requiresAuth: false }
   }
 ]
@@ -93,13 +111,15 @@ router.beforeEach(async (to, from, next) => {
     }
     
     if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-      console.log('Redirecting to login - auth required but not authenticated')
+      console.log('🚫 Redirecting to login - auth required but not authenticated')
+      console.log('🚫 Route meta:', to.meta)
+      console.log('🚫 Auth state:', { isAuthenticated: authStore.isAuthenticated, hasUser: !!authStore.user })
       next('/login')
     } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-      console.log('Redirecting to chat - guest route but authenticated')
+      console.log('🔄 Redirecting to chat - guest route but authenticated')
       next('/chat')
     } else {
-      console.log('Allowing navigation to:', to.path)
+      console.log('✅ Allowing navigation to:', to.path)
       next()
     }
   } catch (error) {

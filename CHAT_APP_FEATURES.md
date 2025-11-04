@@ -61,7 +61,14 @@ src/components/
 ├── TypingIndicator.vue          # Hiển thị typing status
 ├── ChatSearch.vue               # Tìm kiếm tin nhắn
 ├── EmojiPicker.vue              # Chọn emoji
-└── MediaGallery.vue             # Thư viện media
+├── MediaGallery.vue             # Thư viện media
+├── VoiceMessage.vue             # Tin nhắn thoại với waveform
+├── MessageReactions.vue         # Phản ứng emoji trên tin nhắn
+├── PinnedMessages.vue           # Quản lý tin nhắn đã ghim
+├── MessageSelectionMode.vue     # Chế độ chọn nhiều tin nhắn
+├── ThemeToggle.vue              # Chuyển đổi dark/light theme
+├── AudioVideoCall.vue           # Giao diện cuộc gọi
+└── ChatStatistics.vue           # Thống kê cuộc trò chuyện
 ```
 
 ### **Demo Components:**
@@ -101,6 +108,7 @@ http://localhost:5173/demo
 ```
 http://localhost:5173/demo/notifications      # Notification system
 http://localhost:5173/demo/telegram-sidebar   # Telegram sidebar
+http://localhost:5173/demo/new-features       # Tính năng mới 2024
 ```
 
 ## 🔧 **Integration**
@@ -187,19 +195,69 @@ http://localhost:5173/demo/telegram-sidebar   # Telegram sidebar
 - **Code splitting** by routes
 - **Optimized imports** từ Ant Design
 
+## 🆕 **Tính năng mới (2024)**
+
+### **7. 🎵 Voice Messages**
+- **Audio recording** với waveform visualization
+- **Playback controls** với progress tracking
+- **File size** và duration display
+- **Read status** indicators
+- **Responsive design** cho mobile
+
+### **8. 🔄 Message Reactions**
+- **Emoji reactions** trên tin nhắn
+- **Multiple reactions** per message
+- **User reaction tracking**
+- **Quick reaction picker**
+- **Reaction statistics**
+
+### **9. 📌 Pinned Messages**
+- **Pin important messages** lên đầu chat
+- **Collapsible pinned section**
+- **Quick navigation** đến tin nhắn gốc
+- **Unpin functionality**
+- **Media preview** trong pinned messages
+
+### **10. 📋 Message Selection Mode**
+- **Multi-select messages** với checkbox
+- **Bulk actions**: forward, copy, pin, delete
+- **Selection counter** và controls
+- **Export messages** to file
+- **Smart selection** (own messages only for delete)
+
+### **11. 🌙 Dark/Light Theme Toggle**
+- **System theme detection**
+- **Manual theme switching**
+- **Smooth transitions** giữa themes
+- **Persistent theme** settings
+- **CSS custom properties** cho theming
+
+### **12. 📞 Audio/Video Calls**
+- **WebRTC integration** (mock interface)
+- **Call controls**: mute, video toggle, speaker
+- **Incoming call** modal
+- **Call statistics** display
+- **Mobile responsive** controls
+
+### **13. 📊 Chat Statistics**
+- **Message analytics** và charts
+- **Activity heatmaps** theo ngày/giờ
+- **Media type breakdown**
+- **Word frequency** analysis
+- **Export statistics** (PDF, Excel)
+
 ## 🔮 **Future Enhancements**
 
 ### **Có thể mở rộng:**
-- [ ] **Voice messages** recording và playback
-- [ ] **Video calls** integration
 - [ ] **File drag & drop** upload
-- [ ] **Message reactions** với emoji
-- [ ] **Message forwarding** và replies
-- [ ] **Chat themes** customization
+- [ ] **Message forwarding** và replies (đã có mock)
 - [ ] **Keyboard shortcuts** system
 - [ ] **Offline support** với PWA
 - [ ] **Push notifications** server
 - [ ] **Multi-language** support
+- [ ] **Voice message transcription**
+- [ ] **Video message** recording
+- [ ] **Screen sharing** trong video calls
 
 ## 📋 **File Structure**
 

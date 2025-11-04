@@ -118,7 +118,7 @@
           </div>
 
           <div class="typing-demo">
-            <TypingIndicator />
+            <TypingIndicator chat-id="demo-chat" />
           </div>
 
           <div class="feature-list">
@@ -465,38 +465,38 @@ function showChatInfo() {
 
 // Typing indicators
 function testTyping() {
-  messagesStore.setTyping('demo-user-1', true)
+  messagesStore.setTyping('demo-user-1', true, 'demo-chat')
   setTimeout(() => {
-    messagesStore.setTyping('demo-user-1', false)
+    messagesStore.setTyping('demo-user-1', false, 'demo-chat')
   }, 10000)
   
   notificationStore.showInfo('Typing Test', 'Demo user is typing for 10 seconds')
 }
 
 function testMultipleTyping() {
-  messagesStore.setTyping('demo-user-1', true)
-  messagesStore.setTyping('demo-user-2', true)
-  messagesStore.setTyping('demo-user-3', true)
+  messagesStore.setTyping('demo-user-1', true, 'demo-chat')
+  messagesStore.setTyping('demo-user-2', true, 'demo-chat')
+  messagesStore.setTyping('demo-user-3', true, 'demo-chat')
   
   setTimeout(() => {
-    messagesStore.setTyping('demo-user-1', false)
+    messagesStore.setTyping('demo-user-1', false, 'demo-chat')
   }, 5000)
   
   setTimeout(() => {
-    messagesStore.setTyping('demo-user-2', false)
+    messagesStore.setTyping('demo-user-2', false, 'demo-chat')
   }, 8000)
   
   setTimeout(() => {
-    messagesStore.setTyping('demo-user-3', false)
+    messagesStore.setTyping('demo-user-3', false, 'demo-chat')
   }, 12000)
   
   notificationStore.showInfo('Multiple Typing', '3 users are typing with different durations')
 }
 
 function stopAllTyping() {
-  messagesStore.setTyping('demo-user-1', false)
-  messagesStore.setTyping('demo-user-2', false)
-  messagesStore.setTyping('demo-user-3', false)
+  messagesStore.setTyping('demo-user-1', false, 'demo-chat')
+  messagesStore.setTyping('demo-user-2', false, 'demo-chat')
+  messagesStore.setTyping('demo-user-3', false, 'demo-chat')
 }
 
 // Search
