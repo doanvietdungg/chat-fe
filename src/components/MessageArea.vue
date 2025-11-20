@@ -5,7 +5,8 @@ import {
   DownloadOutlined,
   PictureOutlined,
   VideoCameraOutlined,
-  CustomerServiceOutlined
+  CustomerServiceOutlined,
+  ForwardOutlined
 } from '@ant-design/icons-vue'
 import MessageReactions from './MessageReactions.vue'
 import QuickReactions from './QuickReactions.vue'
@@ -29,6 +30,10 @@ const authStore = useAuthStore()
 const messageContainer = ref(null)
 const hoveredMessageId = ref(null)
 const showQuickReactions = ref(null)
+const shouldAutoScroll = ref(true)
+const isLoadingMore = ref(false)
+const hasMoreMessages = ref(true)
+const currentPage = ref(0)
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -41,9 +46,37 @@ const processedMessages = computed(() => {
     const isOwn = message.authorId === authStore.user?.id || 
                   String(message.authorId) === String(authStore.user?.id)
     
+    // Lookup reply message if replyToId exists
+    let replyTo = null
+    if (message.replyToId) {
+      const replyMsg = props.messages.find(m => m.id === message.replyToId)
+      if (replyMsg) {
+        replyTo = {
+          id: replyMsg.id,
+          author: replyMsg.author,
+          text: replyMsg.text,
+          authorId: replyMsg.authorId
+        }
+      }
+    }
+    
+    // Lookup forwarded from message if forwardedFromId exists
+    let forwardedFrom = null
+    if (message.forwardedFromId) {
+      const forwardedMsg = props.messages.find(m => m.authorId === message.forwardedFromId)
+      if (forwardedMsg) {
+        forwardedFrom = {
+          authorId: forwardedMsg.authorId,
+          author: forwardedMsg.author
+        }
+      }
+    }
+    
     return {
       ...message,
       isOwn,
+      replyTo,
+      forwardedFrom,
       formattedTime: formatTime(message.timestamp || message.at),
       authorInitial: message.author?.[0]?.toUpperCase() || '?',
       timestamp: new Date(message.timestamp || message.at).getTime()
@@ -96,10 +129,84 @@ function formatTime(timestamp) {
 
 function scrollToBottom() {
   nextTick(() => {
-    if (messageContainer.value) {
+    if (messageContainer.value && shouldAutoScroll.value) {
       messageContainer.value.scrollTop = messageContainer.value.scrollHeight
     }
   })
+}
+
+// Handle scroll to detect if user manually scrolled up
+function handleScroll() {
+  if (!messageContainer.value) return
+  
+  const container = messageContainer.value
+  const scrollTop = container.scrollTop
+  const scrollHeight = container.scrollHeight
+  const clientHeight = container.clientHeight
+  
+  // Check if user is at bottom (within 50px threshold)
+  const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+  
+  // Only auto-scroll if user is at bottom
+  shouldAutoScroll.value = isAtBottom
+  
+  // Check if scrolled near top (within 100px) to load more messages
+  const isNearTop = scrollTop < 100
+  
+  if (isNearTop && !isLoadingMore.value && hasMoreMessages.value) {
+    loadMoreMessages()
+  }
+  
+  console.log('Scroll position:', {
+    scrollTop,
+    scrollHeight,
+    clientHeight,
+    isAtBottom,
+    isNearTop,
+    shouldAutoScroll: shouldAutoScroll.value,
+    currentPage: currentPage.value
+  })
+}
+
+// Load more messages when scrolling to top
+async function loadMoreMessages() {
+  if (isLoadingMore.value || !hasMoreMessages.value || !props.chatId) return
+  
+  isLoadingMore.value = true
+  const previousScrollHeight = messageContainer.value?.scrollHeight || 0
+  const previousScrollTop = messageContainer.value?.scrollTop || 0
+  
+  try {
+    const nextPage = currentPage.value + 1
+    console.log(`📜 Loading more messages for chat ${props.chatId}, page ${nextPage}`)
+    
+    const newMessages = await messagesStore.loadMoreMessages(
+      props.chatId, 
+      nextPage, 
+      50
+    )
+    
+    if (newMessages && newMessages.length > 0) {
+      currentPage.value = nextPage
+      console.log(`📜 Loaded ${newMessages.length} more messages, current page: ${currentPage.value}`)
+      
+      // Maintain scroll position after loading new messages
+      nextTick(() => {
+        if (messageContainer.value) {
+          const newScrollHeight = messageContainer.value.scrollHeight
+          const addedHeight = newScrollHeight - previousScrollHeight
+          messageContainer.value.scrollTop = previousScrollTop + addedHeight
+        }
+      })
+    } else {
+      hasMoreMessages.value = false
+      console.log('📜 No more messages to load')
+    }
+  } catch (error) {
+    console.error('📜 Failed to load more messages:', error)
+  } finally {
+    isLoadingMore.value = false
+  }
 }
 
 // Context menu functions
@@ -151,10 +258,22 @@ function handleContextMenuAction(action, data) {
   }
 }
 
-// Auto scroll to bottom when new messages arrive
-watch(() => props.messages.length, () => {
-  scrollToBottom()
+// Auto scroll to bottom when new messages arrive (only if user is already at bottom)
+watch(() => props.messages.length, (newLength, oldLength) => {
+  // Only scroll if messages increased (new message)
+  if (newLength > oldLength) {
+    scrollToBottom()
+  }
 }, { immediate: true })
+
+// Reset auto-scroll when chat changes
+watch(() => props.chatId, () => {
+  shouldAutoScroll.value = true
+  currentPage.value = 0
+  hasMoreMessages.value = true
+  isLoadingMore.value = false
+  nextTick(() => scrollToBottom())
+})
 
 // File helper functions
 function isImageMessage(message) {
@@ -210,8 +329,14 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
 </script>
 
 <template>
-  <div class="message-area" ref="messageContainer">
+  <div class="message-area" ref="messageContainer" @scroll="handleScroll">
     <div class="messages-container">
+      <!-- Loading more indicator at top -->
+      <div v-if="isLoadingMore" class="loading-more">
+        <a-spin size="small" />
+        <span>Đang tải thêm tin nhắn...</span>
+      </div>
+      
       <div
         v-for="message in processedMessages"
         :key="message.id"
@@ -257,6 +382,12 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
         >
           <!-- Message Content -->
           <div class="message-content">
+            <!-- Forwarded Label -->
+            <div v-if="message.forwardedFrom" class="forwarded-label">
+              <ForwardOutlined class="forward-icon" />
+              <span>Chuyển tiếp từ {{ message.forwardedFrom.author }}</span>
+            </div>
+
             <!-- Reply Preview (if this message is a reply) -->
             <div v-if="message.replyTo" class="reply-preview">
               <div class="reply-line"></div>
@@ -648,6 +779,19 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
   padding: var(--spacing-md);
 }
 
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
 .message-skeleton {
   display: flex;
   align-items: flex-start;
@@ -725,6 +869,25 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Forwarded label */
+.forwarded-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 6px;
+  font-style: italic;
+}
+
+.own-bubble .forwarded-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.forward-icon {
+  font-size: 12px;
 }
 
 /* Message states */

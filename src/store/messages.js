@@ -86,7 +86,8 @@ export function useMessagesStore() {
         edited: message.createdAt !== message.updatedAt,
         editedAt: message.createdAt !== message.updatedAt ? message.updatedAt : null,
         reactions: [],
-        replyTo: null,
+        replyToId: message.replyToId || null,
+        forwardedFromId: message.forwardedFromId || null,
         forwarded: null,
         readBy: [],
         media: media,
@@ -144,7 +145,8 @@ export function useMessagesStore() {
       edited: messageData.edited || (messageData.createdAt !== messageData.updatedAt),
       editedAt: messageData.editedAt || (messageData.createdAt !== messageData.updatedAt ? messageData.updatedAt : null),
       reactions: messageData.reactions || [],
-      replyTo: messageData.replyTo || null,
+      replyToId: messageData.replyToId || null,
+      forwardedFromId: messageData.forwardedFromId || null,
       forwarded: messageData.forwarded || null,
       readBy: messageData.readBy || [],
       media: messageData.media || (messageData.fileId ? {
@@ -309,6 +311,9 @@ export function useMessagesStore() {
 
   // Reply management
   function setReplyTo(message) {
+    console.log('🔵 setReplyTo called with:', message)
+    console.log('🔵 Message ID:', message?.id)
+    
     state.replyingTo = {
       id: message.id,
       text: message.text,
@@ -316,6 +321,8 @@ export function useMessagesStore() {
       media: message.media,
       voice: message.voice
     }
+    
+    console.log('🔵 State replyingTo after set:', state.replyingTo)
   }
 
   function clearReply() {

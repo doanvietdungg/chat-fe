@@ -6,10 +6,14 @@ import MessageArea from './MessageArea.vue'
 import MessageInput from './MessageInput.vue'
 import PinnedMessage from './PinnedMessage.vue'
 import PinnedMessagesView from './PinnedMessagesView.vue'
+import ForwardMessageModal from './ForwardMessageModal.vue'
+import { message as antMessage } from 'ant-design-vue'
 
 const { chatStore, messagesStore, sendMessage } = useStores()
 const showPinnedView = ref(false)
 const messageInputRef = ref(null)
+const forwardModalVisible = ref(false)
+const forwardingMessage = ref(null)
 
 // Inject state from parent
 const isPinnedViewOpen = inject('isPinnedViewOpen', ref(false))
@@ -59,10 +63,48 @@ function handleStartEdit(message) {
   }
 }
 
+// Handle reply message
+function handleReplyMessage(message) {
+  if (messageInputRef.value) {
+    messageInputRef.value.startReplyMessage(message)
+  }
+}
+
 // Handle delete message
 function handleDeleteMessage(message) {
   if (messageInputRef.value) {
     messageInputRef.value.deleteMessage(message.id)
+  }
+}
+
+// Handle forward message
+function handleForwardMessage(message) {
+  forwardingMessage.value = message
+  forwardModalVisible.value = true
+}
+
+async function handleForward({ message, chatIds }) {
+  try {
+    // Nếu message này đã là forwarded message, giữ nguyên forwardedFromId gốc
+    // Nếu không, dùng authorId của message hiện tại
+    const originalAuthorId = message.forwardedFromId || message.authorId
+    
+    for (const chatId of chatIds) {
+      await chatStore.sendMessage(message.text || '', {
+        type: message.type || 'TEXT',
+        fileId: message.media?.fileId || null,
+        fileName: message.media?.fileName || null,
+        fileUrl: message.media?.fileUrl || null,
+        fileSize: message.media?.fileSize || null,
+        contentType: message.media?.contentType || null,
+        forwardedFromId: originalAuthorId,
+        forwardedToChatId: chatId
+      })
+    }
+    antMessage.success(`Đã chuyển tiếp tới ${chatIds.length} cuộc trò chuyện`)
+  } catch (error) {
+    console.error('Forward message error:', error)
+    antMessage.error('Lỗi khi chuyển tiếp tin nhắn')
   }
 }
 
@@ -102,6 +144,8 @@ function unpinAllMessages() {
         :loading="messagesStore.state?.loading || false"
         :chat-id="chatStore.state.currentChatId"
         @start-edit="handleStartEdit"
+        @reply="handleReplyMessage"
+        @forward="handleForwardMessage"
         @delete="handleDeleteMessage"
       />
     </div>
@@ -113,6 +157,13 @@ function unpinAllMessages() {
         @attach="handleAttach" 
       />
     </div>
+    
+    <!-- Forward Message Modal -->
+    <ForwardMessageModal
+      v-model:open="forwardModalVisible"
+      :message="forwardingMessage"
+      @forward="handleForward"
+    />
     
     <!-- Pinned Messages View -->
     <PinnedMessagesView

@@ -6,7 +6,8 @@ import {
   PaperClipOutlined, 
   SendOutlined,
   LoadingOutlined,
-  CloseOutlined
+  CloseOutlined,
+  RollbackOutlined
 } from '@ant-design/icons-vue'
 import { useTypingIndicator } from '../composables/useTypingIndicator'
 import { useChatStore } from '../store/chat'
@@ -43,6 +44,9 @@ const uploadProgress = ref(0)
 const editingMessage = ref(null)
 const isEditMode = computed(() => !!editingMessage.value)
 
+// Reply mode state
+const replyingTo = computed(() => messagesStore.state.replyingTo)
+
 // Common emojis for fallback picker
 const commonEmojis = [
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
@@ -71,11 +75,25 @@ function handleSend() {
     return
   }
   
-  // Send text message
+  // Send text message (with reply if present)
   if (text) {
-    emit('send', text)
+    // Get reply message ID if replying
+    const replyToId = replyingTo.value?.id || null
+    
+    console.log('🔵 Sending message with replyToId:', replyToId)
+    console.log('🔵 Full replyingTo:', replyingTo.value)
+    
+    // Always use chatStore.sendMessage to include reply data
+    chatStore.sendMessage(text, replyToId ? { replyToId } : {})
+    
     messageText.value = ''
     showEmojiPicker.value = false
+    
+    // Clear reply after sending
+    if (replyingTo.value) {
+      cancelReply()
+    }
+    
     // Stop typing when message is sent
     stopTyping()
   }
@@ -294,11 +312,23 @@ async function deleteMessage(messageId) {
   }
 }
 
+// Reply message functions
+function startReplyMessage(messageData) {
+  console.log('🟢 startReplyMessage called with:', messageData)
+  console.log('🟢 Message ID:', messageData?.id)
+  messagesStore.setReplyTo(messageData)
+}
+
+function cancelReply() {
+  messagesStore.clearReply()
+}
+
 // Expose functions for parent components
 defineExpose({
   startEditMessage,
   deleteMessage,
-  clearAllFiles
+  clearAllFiles,
+  startReplyMessage
 })
 
 function handleInput() {
@@ -350,6 +380,20 @@ function closeEmojiPicker() {
         <span class="edit-text">Chỉnh sửa tin nhắn</span>
       </div>
       <a-button size="small" type="text" @click="cancelEdit">
+        <template #icon><CloseOutlined /></template>
+      </a-button>
+    </div>
+
+    <!-- Reply Banner -->
+    <div v-if="replyingTo" class="reply-banner">
+      <div class="reply-info">
+        <RollbackOutlined class="reply-icon" />
+        <div class="reply-content">
+          <div class="reply-author">{{ replyingTo.author }}</div>
+          <div class="reply-text">{{ replyingTo.text }}</div>
+        </div>
+      </div>
+      <a-button size="small" type="text" @click="cancelReply">
         <template #icon><CloseOutlined /></template>
       </a-button>
     </div>
@@ -467,6 +511,51 @@ function closeEmojiPicker() {
 
 .edit-icon {
   font-size: 16px;
+}
+
+.reply-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f0f2f5;
+  border-top: 1px solid #d9d9d9;
+  border-left: 3px solid #1890ff;
+}
+
+.reply-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-icon {
+  color: #1890ff;
+  font-size: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.reply-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1890ff;
+  margin-bottom: 2px;
+}
+
+.reply-text {
+  font-size: 13px;
+  color: #595959;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cancel-edit-btn {

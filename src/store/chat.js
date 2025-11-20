@@ -68,8 +68,15 @@ export function useChatStore() {
       fileUrl = null,
       fileSize = null,
       contentType = null,
-      caption = ''
+      caption = '',
+      replyToId = null,
+      forwardedFromId = null,
+      forwardedToChatId = null
     } = options
+
+    console.log('📤 sendMessage called with options:', options)
+    console.log('📤 replyToId extracted:', replyToId)
+    console.log('📤 forwardedFromId extracted:', forwardedFromId)
 
     // Allow empty text for file messages
     if (!trimmed && !fileId) return
@@ -122,18 +129,27 @@ export function useChatStore() {
         subscribeToChat(chatId)
       }
 
+      // If forwarding to a specific chat, use that instead
+      if (forwardedToChatId) {
+        chatId = forwardedToChatId
+      }
+
       // Send message via WebSocket (STOMP)
       const payload = {
         chatId: chatId,
         recipientId: recipientId,
         text: trimmed || caption, // Use caption for file messages
-        type: type, // Use provided type (TEXT, IMAGE, VIDEO, etc.)
+        type: type.toUpperCase(), // TEXT, IMAGE, FILE, SYSTEM
         fileId: fileId,
         fileName: fileName,
         fileUrl: fileUrl,
         fileSize: fileSize,
-        contentType: contentType
+        contentType: contentType,
+        replyToId: replyToId,
+        forwardedFromId: forwardedFromId
       }
+
+      console.log('📤 Payload with reply_to_id and forwardedFromId:', payload)
 
       // Get current user info
       const authStore = useAuthStore()
@@ -146,6 +162,7 @@ export function useChatStore() {
         timestamp: new Date().toISOString(),
         authorId: currentUser?.id || 'current_user',
         author: currentUser?.name || currentUser?.username || 'You',
+        replyToId: replyToId, // Add replyToId to optimistic message
         // Add file-specific fields for display
         media: fileId ? {
           fileId,
@@ -157,6 +174,8 @@ export function useChatStore() {
         } : null
       }
 
+      console.log('📤 MessageData with replyToId:', messageData)
+
       console.log('Sending message with data:', messageData)
       const optimisticMessage = messagesStore.addMessage(messageData)
 
@@ -167,17 +186,19 @@ export function useChatStore() {
         const apiPayload = {
           chatId: chatId, // Include chatId in payload
           text: trimmed || caption,
-          type: type,
+          type: type.toUpperCase(), // TEXT, IMAGE, FILE, SYSTEM
           fileId: fileId,
           fileName: fileName,
           fileUrl: fileUrl,
           fileSize: fileSize,
           contentType: contentType,
-          recipientId: recipientId
+          recipientId: recipientId,
+          replyToId: replyToId,
+          forwardedFromId: forwardedFromId
         }
         
-        console.log('📤 API payload:', apiPayload)
-        const apiResponse = await messageAPI.sendMessage(chatId, apiPayload)
+        console.log('📤 API payload with reply_to_id and forwardedFromId:', apiPayload)
+        const apiResponse = await messageAPI.sendMessage(chatId, apiPayload)  
 
         console.log('📤 API send message response:', apiResponse)
 
@@ -271,7 +292,9 @@ export function useChatStore() {
             text: message.text,
             authorId: message.authorId,
             timestamp: message.createdAt || new Date().toISOString(),
-            type: message.type || 'TEXT'
+            type: message.type || 'TEXT',
+            replyToId: message.replyToId || null,
+            forwardedFromId: message.forwardedFromId || null
           })
 
           // Update chat's last message and increment unread
