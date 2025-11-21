@@ -295,17 +295,9 @@ async function saveEdit() {
 // Delete message function
 async function deleteMessage(messageId) {
   try {
-    const success = messagesStore.deleteMessage(messageId)
-    
-    if (success) {
-      // Call API to delete message on server
-      const { messageAPI } = await import('../services/api.js')
-      await messageAPI.deleteMessage(messageId)
-      
-      message.success('Đã xóa tin nhắn')
-    } else {
-      message.error('Không thể xóa tin nhắn này')
-    }
+    // messagesStore.deleteMessage() đã gọi API bên trong rồi
+    await messagesStore.deleteMessage(messageId)
+    message.success('Đã xóa tin nhắn')
   } catch (error) {
     console.error('Delete message error:', error)
     message.error('Lỗi khi xóa tin nhắn')

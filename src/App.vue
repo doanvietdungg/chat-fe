@@ -4,11 +4,15 @@ import { useRouter } from 'vue-router'
 import { initializeStores, initializeChatSystem } from './plugins/stores'
 import { useAuthStore } from './store/auth'
 import { useNotificationsStore } from './store/notifications'
+import { usePresenceStore } from './store/presence'
+import { useChatStore } from './store/chat'
 import NotificationToast from './components/NotificationToast.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationsStore()
+const presenceStore = usePresenceStore()
+const chatStore = useChatStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
@@ -19,12 +23,45 @@ onMounted(() => {
   
   // Initialize notification store
   notificationStore.init()
+  
+  // Handle beforeunload to send offline status
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  
+  // Handle visibility change (tab switch)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
   // Cleanup auth store event listeners
   authStore.cleanup()
+  
+  // Remove event listeners
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
+
+// Send offline status when closing tab/browser
+function handleBeforeUnload() {
+  if (isAuthenticated.value && chatStore.state.isConnected) {
+    presenceStore.sendOfflineStatus()
+  }
+}
+
+// Handle tab visibility change
+function handleVisibilityChange() {
+  if (!isAuthenticated.value || !chatStore.state.isConnected) return
+  
+  if (document.hidden) {
+    // Tab is hidden - optionally send offline or keep online
+    console.log('📱 Tab hidden - user may be away')
+    // Uncomment to send offline when switching tabs:
+    // presenceStore.sendOfflineStatus()
+  } else {
+    // Tab is visible again - send online status
+    console.log('📱 Tab visible - user is back')
+    presenceStore.sendOnlineStatus()
+  }
+}
 
 // Watch for authentication changes and initialize chat system
 watch(isAuthenticated, async (authenticated) => {

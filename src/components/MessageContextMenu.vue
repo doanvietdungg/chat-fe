@@ -267,6 +267,27 @@ function forwardMessage() {
 function deleteMessage() {
   if (!props.messageData?.id || !canDelete.value) return
   
+  // Lấy ID trực tiếp, đảm bảo không bị cắt
+  const messageId = String(props.messageData.id)
+  const messageToDelete = {
+    id: messageId,
+    chatId: props.messageData.chatId,
+    text: props.messageData.text
+  }
+  
+  // Log để debug
+  console.log('📋 Original message data:', props.messageData)
+  console.log('📋 Extracted message ID:', messageId)
+  console.log('📋 Message ID type:', typeof messageId)
+  console.log('📋 Message ID length:', messageId.length)
+  console.log('📋 Message ID chars:', messageId.split(''))
+  
+  if (messageId.length !== 36) {
+    console.error('❌ Invalid UUID length!', messageId)
+    message.error('Invalid message ID format')
+    return
+  }
+  
   Modal.confirm({
     title: 'Delete message?',
     content: 'Are you sure you want to delete this message? This action cannot be undone.',
@@ -275,11 +296,14 @@ function deleteMessage() {
     cancelText: 'Cancel',
     onOk: async () => {
       try {
-        await messagesStore.deleteMessage(props.messageData.id)
+        console.log('🗑️ Deleting message with ID:', messageId)
+        await messagesStore.deleteMessage(messageId)
         message.success('Message deleted')
-        emit('action', 'delete', props.messageData)
+        emit('action', 'delete', messageToDelete)
       } catch (error) {
-        message.error('Failed to delete message')
+        console.error('❌ Delete message error:', error)
+        const errorMsg = error.response?.data?.message || error.message || 'Failed to delete message'
+        message.error(errorMsg)
       }
     }
   })

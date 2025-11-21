@@ -12,7 +12,11 @@ const state = reactive({
   replyingTo: null,
   selectedMessages: [], // For forwarding/bulk actions
   searchResults: [],
-  isSearching: false
+  isSearching: false,
+  
+  // Track loading state per chat to prevent duplicate API calls
+  loadingChats: new Set(),
+  loadedChats: new Set()
 })
 
 export function useMessagesStore() {
@@ -88,6 +92,7 @@ export function useMessagesStore() {
         reactions: [],
         replyToId: message.replyToId || null,
         forwardedFromId: message.forwardedFromId || null,
+        forwardedFromUsername: message.forwardedFromUsername || null,
         forwarded: null,
         readBy: [],
         media: media,
@@ -195,12 +200,24 @@ export function useMessagesStore() {
   }
 
   function removeMessage(messageId) {
-    const messageIndex = state.messages.findIndex(m => m.id === messageId)
-    if (messageIndex !== -1) {
-      state.messages.splice(messageIndex, 1)
-      return true
+    console.log('🗑️ removeMessage called for:', messageId)
+    
+    // Đánh dấu message đang bị xóa để trigger animation
+    const message = state.messages.find(m => m.id === messageId)
+    if (message) {
+      message.isDeleting = true
     }
-    return false
+    
+    // Delay để animation chạy (600ms - dissolve effect)
+    setTimeout(() => {
+      const messageIndex = state.messages.findIndex(m => m.id === messageId)
+      if (messageIndex !== -1) {
+        state.messages.splice(messageIndex, 1)
+        console.log('✅ Message dissolved and removed from UI')
+      }
+    }, 600)
+    
+    return true
   }
 
   function editMessage(messageId, newText) {
@@ -215,19 +232,43 @@ export function useMessagesStore() {
     return false
   }
 
-  function deleteMessage(messageId) {
-    const messageIndex = state.messages.findIndex(m => m.id === messageId)
-    if (messageIndex !== -1) {
-      const message = state.messages[messageIndex]
-      if (message.authorId === getCurrentUser().id) {
-        // Soft delete - replace with placeholder
-        message.text = 'Tin nhắn đã được xóa'
-        message.deleted = true
-        message.deletedAt = new Date().toISOString()
-        return true
+  async function deleteMessage(messageId) {
+    try {
+      console.log('🗑️ Deleting message:', messageId)
+      console.log('🗑️ MessageId type:', typeof messageId)
+      console.log('🗑️ MessageId length:', messageId?.length)
+      
+      // Validate UUID format
+      if (!messageId || typeof messageId !== 'string') {
+        throw new Error('Invalid messageId: must be a string')
       }
+      
+      // UUID should be 36 characters (8-4-4-4-12 format)
+      if (messageId.length !== 36) {
+        console.error('❌ Invalid UUID length:', messageId.length, 'Expected: 36')
+        console.error('❌ MessageId value:', messageId)
+        throw new Error(`Invalid UUID format: ${messageId}`)
+      }
+      
+      // Gọi API xóa tin nhắn
+      const { messageAPI } = await import('../services/api.js')
+      const response = await messageAPI.deleteMessage(messageId)
+      
+      console.log('✅ Delete message response:', response)
+      
+      // Xóa khỏi state sau khi API thành công
+      const messageIndex = state.messages.findIndex(m => m.id === messageId)
+      if (messageIndex !== -1) {
+        state.messages.splice(messageIndex, 1)
+        console.log('✅ Message removed from state')
+      }
+      
+      return true
+    } catch (error) {
+      console.error('❌ Failed to delete message:', error)
+      console.error('Error details:', error.response?.data || error.message)
+      throw error
     }
-    return false
   }
 
   function undoDelete(messageId) {
@@ -513,7 +554,23 @@ export function useMessagesStore() {
   async function loadMessagesForChat(chatId, params = {}) {
     if (!chatId) return []
 
+    console.log('🔍 loadMessagesForChat called for:', chatId, 'Stack trace:')
+    console.trace()
+
+    // Prevent duplicate loading for the same chat
+    if (state.loadingChats.has(chatId)) {
+      console.log('⏳ Already loading messages for chat:', chatId)
+      return getMessagesForChat(chatId)
+    }
+
+    // If chat already loaded and no params (initial load), return cached messages
+    if (state.loadedChats.has(chatId) && Object.keys(params).length === 0) {
+      console.log('✅ Using cached messages for chat:', chatId)
+      return getMessagesForChat(chatId)
+    }
+
     state.loading = true
+    state.loadingChats.add(chatId)
 
     try {
       // Import messageAPI dynamically to avoid circular dependency
@@ -525,18 +582,20 @@ export function useMessagesStore() {
         sort: 'createdAt,desc'
       }
 
-      console.log('Loading messages for chat:', chatId, 'with params:', { ...defaultParams, ...params })
+      console.log('📥 Loading messages for chat:', chatId, 'with params:', { ...defaultParams, ...params })
       const response = await messageAPI.getMessages(chatId, { ...defaultParams, ...params })
-      console.log('Messages API response:', response)
+      console.log('📥 Messages API response:', response)
 
       setMessagesForChat(chatId, response)
+      state.loadedChats.add(chatId)
 
       return getMessagesForChat(chatId)
     } catch (error) {
-      console.error(`Failed to load messages for chat ${chatId}:`, error)
+      console.error(`❌ Failed to load messages for chat ${chatId}:`, error)
       return []
     } finally {
       state.loading = false
+      state.loadingChats.delete(chatId)
     }
   }
 
@@ -643,6 +702,17 @@ export function useMessagesStore() {
     }
   }
 
+  // Clear messages cache for a specific chat (useful for forcing refresh)
+  function clearMessagesCache(chatId) {
+    if (chatId) {
+      state.loadedChats.delete(chatId)
+      console.log('🗑️ Cleared messages cache for chat:', chatId)
+    } else {
+      state.loadedChats.clear()
+      console.log('🗑️ Cleared all messages cache')
+    }
+  }
+
   return {
     state,
 
@@ -654,6 +724,7 @@ export function useMessagesStore() {
     setMessagesForChat,
     loadMessagesForChat,
     loadMoreMessages,
+    clearMessagesCache,
     addMessage,
     removeMessage,
     editMessage,

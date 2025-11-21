@@ -1,7 +1,7 @@
 <template>
   <div class="user-status-indicator">
     <!-- Online indicator -->
-    <div v-if="isOnline" class="status-indicator online" :title="statusText">
+    <div v-if="isUserOnline" class="status-indicator online" :title="statusText">
       <div class="status-dot online-dot"></div>
       <span v-if="showText" class="status-text">{{ statusText }}</span>
     </div>
@@ -16,12 +16,17 @@
 
 <script setup>
 import { computed } from 'vue'
+import { usePresenceStore } from '../store/presence'
 import { formatLastSeen } from '../utils/userHelpers.js'
 
 const props = defineProps({
+  userId: {
+    type: String,
+    required: true
+  },
   isOnline: {
     type: Boolean,
-    default: false
+    default: null // null means use presence store
   },
   lastSeen: {
     type: String,
@@ -38,11 +43,31 @@ const props = defineProps({
   }
 })
 
-const statusText = computed(() => {
-  if (props.isOnline) {
-    return 'Online'
+const presenceStore = usePresenceStore()
+
+// Use presence store if isOnline prop is not explicitly provided
+const isUserOnline = computed(() => {
+  if (props.isOnline !== null) {
+    return props.isOnline
   }
-  return `Last seen ${formatLastSeen(props.lastSeen)}`
+  return presenceStore.isUserOnline(props.userId)
+})
+
+const userStatus = computed(() => {
+  return presenceStore.getUserStatus(props.userId)
+})
+
+const statusText = computed(() => {
+  if (isUserOnline.value) {
+    return 'Đang hoạt động'
+  }
+  
+  const lastSeenTime = props.lastSeen || userStatus.value.lastSeen
+  if (lastSeenTime) {
+    return `Hoạt động ${formatLastSeen(lastSeenTime)}`
+  }
+  
+  return 'Ngoại tuyến'
 })
 </script>
 

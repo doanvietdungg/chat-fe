@@ -21,6 +21,12 @@ const refreshClient = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
+    // Log all API requests to debug duplicates
+    if (config.url && config.url.includes('/messages/')) {
+      console.log('🌐 API Request:', config.method?.toUpperCase(), config.url)
+      console.trace('Request stack trace')
+    }
+    
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

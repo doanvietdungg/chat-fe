@@ -70,13 +70,6 @@ function handleReplyMessage(message) {
   }
 }
 
-// Handle delete message
-function handleDeleteMessage(message) {
-  if (messageInputRef.value) {
-    messageInputRef.value.deleteMessage(message.id)
-  }
-}
-
 // Handle forward message
 function handleForwardMessage(message) {
   forwardingMessage.value = message
@@ -146,7 +139,6 @@ function unpinAllMessages() {
         @start-edit="handleStartEdit"
         @reply="handleReplyMessage"
         @forward="handleForwardMessage"
-        @delete="handleDeleteMessage"
       />
     </div>
     

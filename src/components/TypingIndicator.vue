@@ -40,22 +40,30 @@ const typingUsers = computed(() => {
   // Use chatId from props or current chat from store
   const currentChatId = props.chatId || chatStore.state.currentChatId
   
+  console.log('🔍 TypingIndicator - currentChatId:', currentChatId)
+  
   if (currentChatId) {
     // Get typing users for specific chat
-    return messagesStore.getTypingUsersForChat(currentChatId)
+    const users = messagesStore.getTypingUsersForChat(currentChatId)
+    console.log('🔍 TypingIndicator - typing users:', users)
+    return users
   }
   
   // Fallback to global typing (deprecated)
+  console.log('🔍 TypingIndicator - using global typing (deprecated)')
   return messagesStore.state.typingUsers || []
 })
 
 const typingText = computed(() => {
   const users = typingUsers.value
+  console.log('🔍 TypingIndicator - typingText computed, users:', users, 'length:', users.length)
+  
   if (users.length === 0) return ''
 
   // Get user names
   const userNames = users.map(userId => {
     const user = usersStore.getUserById(userId)
+    console.log('🔍 TypingIndicator - user lookup:', userId, 'result:', user)
     return user?.name || user?.username || `User ${userId.slice(-4)}`
   })
 

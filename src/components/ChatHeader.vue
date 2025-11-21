@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { useChatsStore } from '../store/chats'
 import { useChatStore } from '../store/chat'
+import { useAuthStore } from '../store/auth'
 import { 
   UserOutlined, 
   TeamOutlined, 
@@ -14,6 +15,7 @@ import {
 } from '@ant-design/icons-vue'
 import TelegramSidebarLight from './TelegramSidebarLight.vue'
 import { useUsersStore } from '../store/users'
+import UserStatusIndicator from './UserStatusIndicator.vue'
 
 const chats = useChatsStore()
 const chat = useChatStore()
@@ -23,6 +25,17 @@ const activeChat = chats.activeChat
 
 const isConnected = computed(() => chat.state.isConnected)
 const showTelegramSidebar = ref(false)
+
+// Get other user ID for private chat
+const otherUserId = computed(() => {
+  if (activeChat?.type === 'private' && activeChat?.participants) {
+    // Find the participant that is not the current user
+    const authStore = useAuthStore()
+    const currentUserId = authStore.user?.id
+    return activeChat.participants.find(p => p !== currentUserId)
+  }
+  return null
+})
 
 
 
@@ -85,7 +98,16 @@ function showChatUserInfo() {
           <span class="chat-name">{{ activeChat?.title || 'Chọn cuộc trò chuyện' }}</span>
         </div>
         <div class="chat-status" v-if="activeChat">
+          <!-- Show online status for private chats -->
+          <UserStatusIndicator 
+            v-if="activeChat.type === 'private' && otherUserId"
+            :userId="otherUserId"
+            :showText="true"
+            size="small"
+          />
+          <!-- Show connection status for groups/channels -->
           <a-badge 
+            v-else
             :status="isConnected ? 'success' : 'warning'"
             :text="isConnected ? 'Đang hoạt động' : 'Ngoại tuyến'"
           />

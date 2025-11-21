@@ -71,6 +71,14 @@
               <a-avatar :style="{ backgroundColor: getAvatarColor(chat?.id) }" size="large">
                 {{ getChatAvatar(chat) }}
               </a-avatar>
+              <!-- Online status indicator for private chats -->
+              <UserStatusIndicator 
+                v-if="chat?.type === 'private' && getOtherUserId(chat)"
+                :userId="getOtherUserId(chat)"
+                :showText="false"
+                size="small"
+                class="avatar-status"
+              />
             </a-badge>
           </div>
 
@@ -110,6 +118,7 @@ import {
 import NewChatDropdown from './NewChatDropdown.vue'
 import UserProfile from './UserProfile.vue'
 import ChatContextMenu from './ChatContextMenu.vue'
+import UserStatusIndicator from './UserStatusIndicator.vue'
 
 // Stores and router
 const router = useRouter()
@@ -185,6 +194,15 @@ function onSearch(value) {
 
 function getChatAvatar(chat) {
   return chat?.title?.[0]?.toUpperCase() || '?'
+}
+
+function getOtherUserId(chat) {
+  if (chat?.type === 'private' && chat?.participants) {
+    // Find the participant that is not the current user
+    const currentUserId = authStore.user?.id
+    return chat.participants.find(p => p !== currentUserId)
+  }
+  return null
 }
 
 function formatLastMessage(message) {
@@ -406,6 +424,14 @@ onMounted(() => {
 
 .chat-avatar {
   flex-shrink: 0;
+  position: relative;
+}
+
+.chat-avatar .avatar-status {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  z-index: 20;
 }
 
 .chat-info {

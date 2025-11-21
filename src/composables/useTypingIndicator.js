@@ -10,11 +10,16 @@ export function useTypingIndicator(chatId) {
 
   // Start typing
   function startTyping() {
-    if (!chatId || isTyping.value) return
+    const currentChatId = chatId?.value || chatId
+    
+    if (!currentChatId || isTyping.value) {
+      console.log('⏭️ Skipping startTyping:', { currentChatId, isTyping: isTyping.value })
+      return
+    }
 
-    console.log("test typing")
+    console.log("🔤 Starting typing for chat:", currentChatId)
     isTyping.value = true
-    chatStore.startTyping(chatId)
+    chatStore.startTyping(currentChatId)
 
     // Clear existing timeout
     if (typingTimeout) {
@@ -31,8 +36,11 @@ export function useTypingIndicator(chatId) {
   function stopTyping() {
     if (!isTyping.value) return
 
+    const currentChatId = chatId?.value || chatId
+    console.log("🔤 Stopping typing for chat:", currentChatId)
+    
     isTyping.value = false
-    chatStore.stopTyping(chatId)
+    chatStore.stopTyping(currentChatId)
 
     // Clear timeout
     if (typingTimeout) {

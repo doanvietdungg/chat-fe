@@ -3,6 +3,7 @@ import { useMessagesStore } from './messages'
 import { useChatsStore } from './chats'
 import { useAuthStore } from './auth'
 import { useUsersStore } from './users'
+import { usePresenceStore } from './presence'
 import { stompService } from '../services/stompService'
 import { chatService } from '../services/chatService'
 import { ca } from 'date-fns/locale'
@@ -32,6 +33,12 @@ export function useChatStore() {
         stompService.on('connected', () => {
           console.log('🔗 STOMP connected successfully')
           state.isConnected = true
+          
+          // 🟢 Send online status to server
+          const presenceStore = usePresenceStore()
+          presenceStore.sendOnlineStatus()
+          presenceStore.subscribeToPresence()
+          
           // Re-subscribe to chats after reconnection
           resubscribeToChats()
           // 🔥 Subscribe to user events for message.first notifications
@@ -45,6 +52,10 @@ export function useChatStore() {
           state.subscribedChats.clear()
           chatSubscriptions.clear()
           state.userEventsSubscriptionId = null // Reset user events subscription
+          
+          // 🔴 User is now offline
+          const presenceStore = usePresenceStore()
+          presenceStore.unsubscribeFromPresence()
         })
         stompService.on('error', () => { state.connectionError = 'STOMP error occurred' })
       }
@@ -55,6 +66,10 @@ export function useChatStore() {
   }
 
   function disconnect() {
+    // 🔴 Send offline status before disconnecting
+    const presenceStore = usePresenceStore()
+    presenceStore.sendOfflineStatus()
+    
     try { stompService.disconnect() } catch (_) { }
     state.isConnected = false
   }
@@ -294,7 +309,8 @@ export function useChatStore() {
             timestamp: message.createdAt || new Date().toISOString(),
             type: message.type || 'TEXT',
             replyToId: message.replyToId || null,
-            forwardedFromId: message.forwardedFromId || null
+            forwardedFromId: message.forwardedFromId || null,
+            forwardedFromUsername: message.forwardedFromUsername || null
           })
 
           // Update chat's last message and increment unread
@@ -309,20 +325,66 @@ export function useChatStore() {
       }
     })
 
+    // Subscribe to chat events (delete, edit, etc.)
+    const eventsDestination = `/topic/chats/${chatId}/events`
+    const eventsSubscriptionId = stompService.subscribe(eventsDestination, (event) => {
+      console.log("🎯 Received chat event:", event);
+
+      if (event && event.type) {
+        const messagesStore = useMessagesStore()
+        
+        // Backend gửi với field 'payload' thay vì 'data'
+        const eventData = event.payload || event.data
+        
+        switch (event.type) {
+          case 'message.deleted':
+            console.log('🗑️ Processing message.deleted event, messageId:', eventData)
+            // Remove message from store
+            if (eventData) {
+              messagesStore.removeMessage(eventData)
+            }
+            break
+          
+          case 'message.edited':
+            console.log('✏️ Processing message.edited event:', eventData)
+            // Update message in store
+            if (eventData && eventData.id) {
+              messagesStore.editMessage(eventData.id, { text: eventData.text })
+            }
+            break
+          
+          default:
+            console.log('ℹ️ Unknown event type:', event.type)
+        }
+      }
+    })
+
     // Subscribe to typing indicators
     const typingDestination = `/topic/chats/${chatId}/typing`
     const typingSubscriptionId = stompService.subscribe(typingDestination, (typingData) => {
       console.log("🔤 Received typing event:", typingData);
+      console.log("🔤 Typing data keys:", typingData ? Object.keys(typingData) : 'null');
+      console.log("🔤 Typing data values:", typingData);
 
       if (typingData) {
         const messagesStore = useMessagesStore()
         const authStore = useAuthStore()
         const currentUserId = authStore.user?.id
 
+        // Backend có thể gửi userId hoặc authorId
+        const typingUserId = typingData.userId || typingData.authorId || typingData.senderId
+        // Backend có thể gửi isTyping hoặc typing
+        const isTyping = typingData.isTyping !== undefined ? typingData.isTyping : typingData.typing
+
+        console.log("🔤 Extracted - UserId:", typingUserId, "IsTyping:", isTyping, "CurrentUserId:", currentUserId);
+
         // Don't show typing indicator for current user
-        if (typingData.userId !== currentUserId) {
+        if (typingUserId && typingUserId !== currentUserId) {
+          console.log("🔤 Setting typing status for user:", typingUserId, "in chat:", chatId);
           // Pass chatId to setTyping for chat-specific typing
-          messagesStore.setTyping(typingData.userId, typingData.isTyping, chatId)
+          messagesStore.setTyping(typingUserId, isTyping, chatId)
+        } else {
+          console.log("🔤 Ignoring typing from current user or invalid userId");
         }
       }
     })
@@ -330,6 +392,11 @@ export function useChatStore() {
     if (messagesSubscriptionId) {
       state.subscribedChats.add(chatId)
       chatSubscriptions.set(chatId, messagesSubscriptionId)
+
+      // Store events subscription separately
+      if (eventsSubscriptionId) {
+        chatSubscriptions.set(`${chatId}-events`, eventsSubscriptionId)
+      }
 
       // Store typing subscription separately
       if (typingSubscriptionId) {
@@ -347,6 +414,13 @@ export function useChatStore() {
     if (messagesSubscriptionId) {
       stompService.unsubscribe(messagesSubscriptionId)
       chatSubscriptions.delete(chatId)
+    }
+
+    // Unsubscribe from events
+    const eventsSubscriptionId = chatSubscriptions.get(`${chatId}-events`)
+    if (eventsSubscriptionId) {
+      stompService.unsubscribe(eventsSubscriptionId)
+      chatSubscriptions.delete(`${chatId}-events`)
     }
 
     // Unsubscribe from typing
@@ -501,14 +575,13 @@ export function useChatStore() {
   }
 
   // Send typing start event
-  function startTyping(chat) {
-    if (!chat || !state.isConnected) return
+  function startTyping(chatId) {
+    if (!chatId || !state.isConnected) {
+      console.log('❌ Cannot send typing: chatId or not connected', { chatId, connected: state.isConnected })
+      return
+    }
 
-    console.log(chat);
-
-    const chatId = chat.value
-    console.log(chatId);
-    console.log(chat);
+    console.log('🔤 Sending typing START for chat:', chatId);
 
     const payload = {
       chatId: chatId,
@@ -516,14 +589,17 @@ export function useChatStore() {
     }
 
     stompService.send('/app/typing', payload)
-    console.log('🔤 Sent typing start for chat:', chatId)
+    console.log('🔤 Sent typing start payload:', payload)
   }
 
   // Send typing stop event
-  function stopTyping(chat) {
-    if (!chat || !state.isConnected) return
+  function stopTyping(chatId) {
+    if (!chatId || !state.isConnected) {
+      console.log('❌ Cannot send typing stop: chatId or not connected', { chatId, connected: state.isConnected })
+      return
+    }
 
-    const chatId = chat.value
+    console.log('🔤 Sending typing STOP for chat:', chatId);
 
     const payload = {
       chatId: chatId,
@@ -531,7 +607,7 @@ export function useChatStore() {
     }
 
     stompService.send('/app/typing', payload)
-    console.log('🔤 Sent typing stop for chat:', chatId)
+    console.log('🔤 Sent typing stop payload:', payload)
   }
 
   // 🔥 HANDLE MESSAGE.FIRST EVENT - Đẩy chat lên đầu
@@ -618,6 +694,32 @@ export function useChatStore() {
     }
   }
 
+  // Debug function to show all active subscriptions
+  function debugSubscriptions() {
+    console.log('=== ACTIVE SUBSCRIPTIONS ===')
+    console.log('📊 Total subscribed chats:', state.subscribedChats.size)
+    console.log('📊 Subscribed chat IDs:', Array.from(state.subscribedChats))
+    console.log('📊 Chat subscriptions map size:', chatSubscriptions.size)
+    
+    console.log('\n📋 Subscription details:')
+    chatSubscriptions.forEach((subId, key) => {
+      console.log(`  - ${key}: ${subId}`)
+    })
+    
+    if (state.userEventsSubscriptionId) {
+      console.log(`\n👤 User events subscription: ${state.userEventsSubscriptionId}`)
+    }
+    
+    console.log('\n📡 Expected topics:')
+    state.subscribedChats.forEach(chatId => {
+      console.log(`  - /topic/chats/${chatId}/messages`)
+      console.log(`  - /topic/chats/${chatId}/events`)
+      console.log(`  - /topic/chats/${chatId}/typing`)
+    })
+    console.log('  - /user/topic/events')
+    console.log('=========================')
+  }
+
   const chatStore = {
     state,
     connect,
@@ -635,6 +737,7 @@ export function useChatStore() {
     handleMessageFirstEvent,
     startTyping,
     stopTyping,
+    debugSubscriptions, // Add debug function
   }
 
   // Make available globally for testing

@@ -110,18 +110,14 @@ function handleMainSidebarClick(menuItem) {
 }
 
 onMounted(async () => {
-  console.log('ChatView mounted with chatId:', props.chatId)
+  console.log('ChatView mounted')
   
-  // If we have a chatId in the route, open that chat
-  if (props.chatId) {
-    await openChatFromRoute(props.chatId)
-  } else {
-    // If no chatId in route, check if we have chats and redirect to first one
-    if (chatsStore.state.chats.length > 0) {
-      const firstChatId = chatsStore.state.chats[0].id
-      console.log('No chatId in route, redirecting to first chat:', firstChatId)
-      router.replace(`/chat/${firstChatId}`)
-    }
+  // Không cần load ở đây vì watch đã có immediate: true
+  // Nếu không có chatId trong route, redirect đến chat đầu tiên
+  if (!route.params.chatId && chatsStore.state.chats.length > 0) {
+    const firstChatId = chatsStore.state.chats[0].id
+    console.log('No chatId in route, redirecting to first chat:', firstChatId)
+    router.replace(`/chat/${firstChatId}`)
   }
 })
 </script>
