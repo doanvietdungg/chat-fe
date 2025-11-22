@@ -40,21 +40,75 @@ Frontend đã implement tính năng hiển thị trạng thái online/offline c�
 
 ## 2. WebSocket Subscription
 
-### Presence Updates Topic
-**Topic:** `/user/topic/presence`
+### Presence Updates Topic (Global)
+**Topic:** `/topic/presence`
+
+**Description:** Frontend subscribe vào topic toàn cục này khi WebSocket connected để nhận presence updates
 
 **Message Format gửi đến client:**
+
+**Option 1: user.online / user.offline**
 ```json
 {
-  "userId": "user-uuid-123",
-  "status": "online",  // "online" hoặc "offline"
-  "lastSeen": "2025-11-22T10:30:00.000Z"
+  "type": "user.online",
+  "payload": {
+    "userId": "550e8400-e29b-41d4-a716-446655440006"
+  },
+  "timestamp": "2025-11-22T10:30:00.000Z"
 }
 ```
 
+```json
+{
+  "type": "user.offline",
+  "payload": {
+    "userId": "550e8400-e29b-41d4-a716-446655440006"
+  },
+  "timestamp": "2025-11-22T10:30:00.000Z"
+}
+```
+
+**Option 2: presence.changed (alternative)**
+```json
+{
+  "type": "presence.changed",
+  "userId": "user-uuid-123",
+  "status": "OFFLINE",
+  "timestamp": "2025-11-22T10:30:00.000Z"
+}
+```
+
+**Backend Implementation:**
+```java
+// Option 1 (Recommended)
+Map<String, Object> event = Map.of(
+    "type", "user.offline",
+    "payload", Map.of("userId", userId),
+    "timestamp", timestamp
+);
+
+// Option 2
+Map<String, Object> event = Map.of(
+    "type", "presence.changed",
+    "userId", userId,
+    "status", status,  // ONLINE, OFFLINE, AWAY, BUSY
+    "timestamp", timestamp
+);
+
+messagingTemplate.convertAndSend("/topic/presence", event);
+```
+
+**Frontend Logic:**
+- Nhận event với `type: "user.online"` hoặc `"user.offline"` hoặc `"presence.changed"`
+- Lấy `userId` từ `event.payload.userId` hoặc `event.userId`
+- Kiểm tra `userId` có trong chat đang mở không (private/group)
+- Nếu có → Update UI status indicator
+- Nếu không → Bỏ qua (không update UI)
+
 **Khi nào gửi:**
-- Khi có user trong contact list thay đổi trạng thái
-- Khi có user trong các chat chung thay đổi trạng thái
+- Khi user connect WebSocket → gửi `user.online`
+- Khi user disconnect WebSocket → gửi `user.offline`
+- Broadcast đến tất cả clients đang kết nối
 
 ---
 

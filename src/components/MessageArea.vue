@@ -13,6 +13,7 @@ import QuickReactions from './QuickReactions.vue'
 import ReactionPicker from './ReactionPicker.vue'
 import MessageContextMenu from './MessageContextMenu.vue'
 import TypingIndicator from './TypingIndicator.vue'
+import FilePreview from './FilePreview.vue'
 import { useStores } from '../composables/useStores'
 import { useAuthStore } from '../store/auth'
 import { formatFileSize, detectFileType, getFileIcon as getFileIconUtil } from '../utils/fileUtils.js'
@@ -39,6 +40,11 @@ const currentPage = ref(0)
 const contextMenuVisible = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const contextMenuMessage = ref(null)
+
+// Image preview state
+const showImagePreview = ref(false)
+const previewImageUrl = ref('')
+const previewFileName = ref('')
 
 const processedMessages = computed(() => {
   const messages = props.messages.map(message => {
@@ -316,11 +322,30 @@ function getFileTypeColor(type) {
   }
 }
 
-function openImagePreview(message) {
-  // TODO: Implement image preview modal
+function previewImage(message) {
   const url = getFileUrl(message)
   if (url && url !== '#') {
-    window.open(url, '_blank')
+    previewImageUrl.value = url
+    previewFileName.value = getFileName(message)
+    showImagePreview.value = true
+  }
+}
+
+function openImagePreview(message) {
+  const url = getFileUrl(message)
+  if (url && url !== '#') {
+    // Use Ant Design Image preview instead of opening in new tab
+    // This will show the image in a modal overlay
+    const img = new Image()
+    img.src = url
+    
+    // Trigger Ant Design Image preview
+    import('ant-design-vue').then(({ Image }) => {
+      Image.PreviewGroup.previewGroup([url])
+    }).catch(() => {
+      // Fallback: open in new tab if preview fails
+      window.open(url, '_blank')
+    })
   }
 }
 
@@ -405,7 +430,8 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
                   :src="getFileUrl(message)" 
                   :alt="getFileName(message)"
                   class="message-image"
-                  @click="openImagePreview(message)"
+                  @click="previewImage(message)"
+                  style="cursor: pointer;"
                 />
               </div>
               
@@ -514,6 +540,15 @@ const emit = defineEmits(['reply', 'edit', 'forward', 'select', 'delete', 'start
       @close="uiStore.closeModal('reactions')"
     />
   </div>
+
+  <!-- Image Preview Modal -->
+  <FilePreview 
+    v-if="showImagePreview"
+    :fileUrl="previewImageUrl"
+    :fileName="previewFileName"
+    :fileType="'image'"
+    @close="showImagePreview = false"
+  />
 </template>
 
 <style scoped>

@@ -105,6 +105,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = async () => {
+    // 🔴 Send offline status before disconnecting
+    try {
+      const { usePresenceStore } = await import('./presence')
+      const presenceStore = usePresenceStore()
+      presenceStore.sendOfflineStatus()
+    } catch (_) { /* noop */ }
+    
     user.value = null
     isAuthenticated.value = false
     error.value = null

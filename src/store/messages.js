@@ -553,6 +553,12 @@ export function useMessagesStore() {
   // Load messages from API for a specific chat
   async function loadMessagesForChat(chatId, params = {}) {
     if (!chatId) return []
+    
+    // Skip loading if chatId is temporary (starts with 'chat-')
+    if (chatId.startsWith('chat-')) {
+      console.log('⚠️ Skipping message load for temporary chat ID:', chatId)
+      return []
+    }
 
     console.log('🔍 loadMessagesForChat called for:', chatId, 'Stack trace:')
     console.trace()
@@ -602,6 +608,12 @@ export function useMessagesStore() {
   // Load more messages (pagination)
   async function loadMoreMessages(chatId, page = 1, size = 50) {
     if (!chatId) return []
+    
+    // Skip loading if chatId is temporary
+    if (chatId.startsWith('chat-')) {
+      console.log('⚠️ Skipping loadMore for temporary chat ID:', chatId)
+      return []
+    }
 
     try {
       const { messageAPI } = await import('../services/api.js')

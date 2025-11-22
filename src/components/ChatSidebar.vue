@@ -71,14 +71,11 @@
               <a-avatar :style="{ backgroundColor: getAvatarColor(chat?.id) }" size="large">
                 {{ getChatAvatar(chat) }}
               </a-avatar>
-              <!-- Online status indicator for private chats -->
-              <UserStatusIndicator 
+              <!-- Online status dot for private chats -->
+              <span 
                 v-if="chat?.type === 'private' && getOtherUserId(chat)"
-                :userId="getOtherUserId(chat)"
-                :showText="false"
-                size="small"
-                class="avatar-status"
-              />
+                :class="['status-dot', isUserOnline(getOtherUserId(chat)) ? 'online' : 'offline']"
+              ></span>
             </a-badge>
           </div>
 
@@ -107,10 +104,11 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatsStore } from '../store/chats'
 import { useAuthStore } from '../store/auth'
+import { usePresenceStore } from '../store/presence'
 import {
   PushpinOutlined,
   SearchOutlined
@@ -124,10 +122,64 @@ import UserStatusIndicator from './UserStatusIndicator.vue'
 const router = useRouter()
 const chatsStore = useChatsStore()
 const authStore = useAuthStore()
+const presenceStore = usePresenceStore()
 const showUserProfile = ref(false)
 const contextMenuVisible = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const selectedChat = ref(null)
+
+// Fetch presence for all users in chat list
+async function fetchAllUserPresence() {
+  const currentUserId = authStore.user?.id
+  if (!currentUserId) return
+
+  // Get all unique user IDs from private chats
+  const userIds = new Set()
+  
+  chatsStore.state.chats.forEach(chat => {
+    if (chat.type === 'private' || chat.type === 'PRIVATE') {
+      chat.participants?.forEach(p => {
+        if (p.id !== currentUserId) {
+          userIds.add(p.id)
+        }
+      })
+    }
+  })
+
+  if (userIds.size === 0) return
+
+  // Call REST API to get presence for all users
+  try {
+    const { default: api } = await import('../services/api.js')
+    const response = await api.post('/presence/status', Array.from(userIds))
+    
+    // Handle backend response format: { success, message, data, timestamp }
+    const presenceData = response.data?.data || response.data
+    console.log('📊 Received presence data:', presenceData)
+    
+    // Update presence store with data
+    // presenceData format: { "userId1": "ONLINE", "userId2": "OFFLINE", ... }
+    Object.entries(presenceData).forEach(([userId, status]) => {
+      if (status === 'ONLINE') {
+        presenceStore.setUserOnline(userId)
+      } else {
+        presenceStore.setUserOffline(userId)
+      }
+    })
+  } catch (error) {
+    console.error('Failed to fetch user presence:', error)
+  }
+}
+
+// Watch for chat list changes and refetch presence
+watch(() => chatsStore.state.chats, () => {
+  fetchAllUserPresence()
+}, { deep: true })
+
+// Fetch on mount
+onMounted(() => {
+  fetchAllUserPresence()
+})
 
 // No local state needed - using store directly
 
@@ -200,9 +252,15 @@ function getOtherUserId(chat) {
   if (chat?.type === 'private' && chat?.participants) {
     // Find the participant that is not the current user
     const currentUserId = authStore.user?.id
-    return chat.participants.find(p => p !== currentUserId)
+    const otherUser = chat.participants.find(p => p.id !== currentUserId)
+    return otherUser?.id || null
   }
   return null
+}
+
+function isUserOnline(userId) {
+  if (!userId) return false
+  return presenceStore.isUserOnline(userId)
 }
 
 function formatLastMessage(message) {
@@ -425,6 +483,25 @@ onMounted(() => {
 .chat-avatar {
   flex-shrink: 0;
   position: relative;
+}
+
+.chat-avatar .status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  z-index: 20;
+}
+
+.chat-avatar .status-dot.online {
+  background-color: #52c41a; /* Màu xanh lá */
+}
+
+.chat-avatar .status-dot.offline {
+  background-color: #ff7875; /* Màu cam/đỏ nhạt */
 }
 
 .chat-avatar .avatar-status {

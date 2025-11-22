@@ -37,7 +37,6 @@ export function useChatStore() {
           // 🟢 Send online status to server
           const presenceStore = usePresenceStore()
           presenceStore.sendOnlineStatus()
-          presenceStore.subscribeToPresence()
           
           // Re-subscribe to chats after reconnection
           resubscribeToChats()
@@ -52,10 +51,6 @@ export function useChatStore() {
           state.subscribedChats.clear()
           chatSubscriptions.clear()
           state.userEventsSubscriptionId = null // Reset user events subscription
-          
-          // 🔴 User is now offline
-          const presenceStore = usePresenceStore()
-          presenceStore.unsubscribeFromPresence()
         })
         stompService.on('error', () => { state.connectionError = 'STOMP error occurred' })
       }
@@ -325,13 +320,15 @@ export function useChatStore() {
       }
     })
 
-    // Subscribe to chat events (delete, edit, etc.)
+    // Subscribe to chat events (delete, edit, presence, etc.)
     const eventsDestination = `/topic/chats/${chatId}/events`
     const eventsSubscriptionId = stompService.subscribe(eventsDestination, (event) => {
       console.log("🎯 Received chat event:", event);
 
       if (event && event.type) {
         const messagesStore = useMessagesStore()
+        const authStore = useAuthStore()
+        const presenceStore = usePresenceStore()
         
         // Backend gửi với field 'payload' thay vì 'data'
         const eventData = event.payload || event.data
@@ -350,6 +347,22 @@ export function useChatStore() {
             // Update message in store
             if (eventData && eventData.id) {
               messagesStore.editMessage(eventData.id, { text: eventData.text })
+            }
+            break
+          
+          case 'user.online':
+          case 'user.offline':
+            console.log(`👤 Processing ${event.type} event for user:`, eventData?.userId)
+            const userId = eventData?.userId
+            const currentUserId = authStore.user?.id
+            
+            // Only update if it's not the current user
+            if (userId && userId !== currentUserId) {
+              if (event.type === 'user.online') {
+                presenceStore.setUserOnline(userId)
+              } else {
+                presenceStore.setUserOffline(userId)
+              }
             }
             break
           
@@ -611,7 +624,7 @@ export function useChatStore() {
   }
 
   // 🔥 HANDLE MESSAGE.FIRST EVENT - Đẩy chat lên đầu
-  function handleMessageFirstEvent(messagePayload) {
+  async function handleMessageFirstEvent(messagePayload) {
     console.log('🚀 Handling message.first event:', messagePayload)
 
     const chatsStore = useChatsStore()
@@ -668,29 +681,66 @@ export function useChatStore() {
       // 🔥 Tạo chat mới và đặt lên đầu
       console.log('➕ Creating new chat for user:', senderId)
 
-      // Get sender info (có thể cần call API để lấy thông tin user)
+      // Get sender info
       const usersStore = useUsersStore()
       const senderUser = usersStore.ensureUser(senderId)
       const senderName = senderUser?.name || senderUser?.username || `User ${senderId}`
 
-      const newChat = {
-        id: `chat-${senderId}-${Date.now()}`, // Temporary ID
-        type: 'private',
-        title: senderName,
-        last: messagePayload.text,
-        unread: 1,
-        pinned: false,
-        muted: false,
-        avatar: senderUser?.avatar || null,
-        participants: [currentUserId, senderId],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastMessageTime: new Date().toISOString()
-      }
+      try {
+        // 📞 Call API to create real chat
+        const chatResponse = await chatService.createChat({
+          type: 'PRIVATE',
+          title: senderName,
+          description: null,
+          otherUserId: senderId,
+          participants: null
+        })
 
-      // Thêm chat mới lên đầu danh sách
-      chatsStore.addChat(newChat)
-      console.log('✅ New chat created and added to top')
+        const newChat = chatResponse?.data || chatResponse
+
+        // Add message to the new chat
+        const messagesStore = useMessagesStore()
+        messagesStore.addMessage({
+          id: messagePayload.id,
+          chatId: newChat.id,
+          text: messagePayload.text,
+          authorId: senderId,
+          timestamp: new Date().toISOString()
+        })
+
+        // Update chat with last message and unread count
+        newChat.last = messagePayload.text
+        newChat.unread = 1
+        newChat.lastMessageTime = new Date().toISOString()
+
+        // Add chat to list
+        chatsStore.addChat(newChat)
+        console.log('✅ Real chat created via API:', newChat.id)
+
+        // Subscribe to the new chat
+        subscribeToChat(newChat.id)
+      } catch (error) {
+        console.error('❌ Failed to create chat via API:', error)
+        
+        // Fallback: Create temporary chat if API fails
+        const tempChat = {
+          id: `chat-${senderId}-${Date.now()}`, // Temporary ID
+          type: 'private',
+          title: senderName,
+          last: messagePayload.text,
+          unread: 1,
+          pinned: false,
+          muted: false,
+          avatar: senderUser?.avatar || null,
+          participants: [currentUserId, senderId],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastMessageTime: new Date().toISOString()
+        }
+
+        chatsStore.addChat(tempChat)
+        console.log('⚠️ Temporary chat created (API failed):', tempChat.id)
+      }
     }
   }
 

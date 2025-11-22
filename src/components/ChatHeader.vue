@@ -28,11 +28,13 @@ const showTelegramSidebar = ref(false)
 
 // Get other user ID for private chat
 const otherUserId = computed(() => {
-  if (activeChat?.type === 'private' && activeChat?.participants) {
-    // Find the participant that is not the current user
+  const chat = activeChat.value
+  
+  if (chat?.type === 'private' && chat?.participants) {
     const authStore = useAuthStore()
     const currentUserId = authStore.user?.id
-    return activeChat.participants.find(p => p !== currentUserId)
+    const otherUser = chat.participants.find(p => p.id !== currentUserId)
+    return otherUser?.id || null
   }
   return null
 })
@@ -100,7 +102,7 @@ function showChatUserInfo() {
         <div class="chat-status" v-if="activeChat">
           <!-- Show online status for private chats -->
           <UserStatusIndicator 
-            v-if="activeChat.type === 'private' && otherUserId"
+            v-if="activeChat.value?.type === 'private' && otherUserId"
             :userId="otherUserId"
             :showText="true"
             size="small"
